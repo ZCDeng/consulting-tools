@@ -21,6 +21,16 @@ PDF 首次使用如提示缺 Chromium:
 npm run install-browser
 ```
 
+## macOS App
+
+使用本地 Pake checkout 打包自包含 macOS app:
+
+```bash
+node desktop/build-mac-app.mjs
+```
+
+产物会输出到 `dist/mac/Consulting Tools.app`。App 启动时会自动运行内置本地服务,数据写入系统 app data 目录,不需要手动 `npm start`。
+
 ## 安全边界
 
 服务只监听 `127.0.0.1:41789`,校验 `Host` 头,且所有写请求都需要启动时生成的本地 token。在线页面与 API 同源,不启用通配 CORS。

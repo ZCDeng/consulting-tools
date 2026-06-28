@@ -1,12 +1,12 @@
 const crypto = require("node:crypto");
 const path = require("node:path");
 
-const rootDir = path.resolve(__dirname, "..");
-const dataDir = path.join(__dirname, "data");
-const exportsDir = path.join(dataDir, "exports");
+const rootDir = path.resolve(process.env.TOOLKIT_ROOT_DIR || path.join(__dirname, ".."));
+const dataDir = path.resolve(process.env.TOOLKIT_DATA_DIR || path.join(__dirname, "data"));
+const exportsDir = path.resolve(process.env.TOOLKIT_EXPORTS_DIR || path.join(dataDir, "exports"));
 const dbPath = process.env.TOOLKIT_DB_PATH || path.join(dataDir, "toolkit.db");
 const port = Number(process.env.TOOLKIT_PORT || 41789);
-const host = "127.0.0.1";
+const host = process.env.TOOLKIT_HOST || "127.0.0.1";
 const token = process.env.TOOLKIT_TOKEN || crypto.randomBytes(24).toString("hex");
 
 const tools = Object.freeze({
