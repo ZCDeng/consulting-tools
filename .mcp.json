@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "consulting-toolkit": {
+      "command": "node",
+      "args": [
+        "server/mcp/index.js"
+      ],
+      "cwd": "/Users/zcdeng/projects/consulting-tools"
+    }
+  }
+}

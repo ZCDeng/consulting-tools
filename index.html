@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>咨询定量工具箱 · DFSS 改造版</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6; --topbar:#ffffff; --chip:#f0ece2;
+  --concept:#2f8f5b; --design:#c98a1e; --optimize:#1f5fa8; --capability:#c0532f;
+  --shadow:0 1px 3px rgba(30,40,60,.07),0 6px 18px rgba(30,40,60,.05);
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e; --topbar:#161c25; --chip:#232c39;
+  --concept:#46b87a; --design:#e0a93f; --optimize:#5b9be0; --capability:#e07a52;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);line-height:1.55;font-size:14px;}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;
+  padding:13px 24px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:17px;margin:0;font-weight:680;letter-spacing:.3px}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+.wrap{max-width:1120px;margin:0 auto;padding:26px 24px 70px}
+.lead{margin:0 0 6px;font-size:14px;color:var(--ink)}
+.lead b{font-weight:650}
+.leadsub{margin:0 0 24px;font-size:13px;color:var(--muted);max-width:760px}
+
+/* chain diagram */
+.chainbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);padding:20px 22px;margin-bottom:30px}
+.chainbox h2{margin:0 0 4px;font-size:13px;font-weight:650}
+.chainbox .ch-cap{margin:0 0 16px;font-size:12px;color:var(--muted)}
+.chain{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.step{flex:1 1 150px;min-width:140px;display:flex;align-items:center}
+.stepcard{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:10px;
+  padding:11px 12px;cursor:pointer;transition:.14s;text-decoration:none;color:inherit;display:block}
+.stepcard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+.stepcard .ph{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.stepcard .nm{font-size:14px;font-weight:650;margin:3px 0 2px}
+.stepcard .role{font-size:11px;color:var(--muted);line-height:1.4}
+.arrow{flex:0 0 22px;text-align:center;color:var(--muted);font-size:16px;align-self:center}
+.ph-concept{color:var(--concept)} .ph-design{color:var(--design)}
+.ph-optimize{color:var(--optimize)} .ph-capability{color:var(--capability)}
+.bd-concept{border-top:3px solid var(--concept)} .bd-design{border-top:3px solid var(--design)}
+.bd-optimize{border-top:3px solid var(--optimize)} .bd-capability{border-top:3px solid var(--capability)}
+
+/* cards grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);
+  padding:0;overflow:hidden;display:flex;flex-direction:column;transition:.15s;text-decoration:none;color:inherit}
+.card:hover{transform:translateY(-3px);border-color:var(--accent)}
+.card .top{padding:15px 17px 12px;display:flex;align-items:flex-start;gap:11px}
+.icon{flex:none;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;color:#fff}
+.i-kano{background:var(--design)} .i-ce{background:var(--optimize)} .i-qfd{background:var(--concept)}
+.i-pugh{background:var(--accent)} .i-fmea{background:var(--capability)} .i-mc{background:#6a4fb0}
+html.dark .i-mc{background:#8b6fd0}
+.card .htxt{flex:1}
+.card .cn{font-size:15.5px;font-weight:680;margin:0}
+.card .en{font-size:11px;color:var(--muted);letter-spacing:.3px}
+.card .body{padding:0 17px 14px;flex:1;display:flex;flex-direction:column;gap:9px}
+.card .what{font-size:12.5px;color:var(--ink);line-height:1.5}
+.card .out{font-size:11.5px;color:var(--muted);background:var(--chip);border-radius:7px;padding:7px 9px}
+.card .out b{color:var(--accent);font-weight:650}
+.card .foot{margin-top:auto;padding:10px 17px;border-top:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between;font-size:12px}
+.card .open{color:var(--accent);font-weight:650}
+.card .tag{font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+.note{margin:28px 0 0;font-size:12px;color:var(--muted);max-width:820px;line-height:1.6}
+.note b{color:var(--ink)}
+.foothint{margin-top:18px;font-size:11.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>咨询定量工具箱</h1>
+  <span class="sub">DFSS / CDOC 方法改造 · 需求分析 → 方案设计</span>
+  <span class="spacer"></span>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <p class="lead"><b>给咨询判断装上可复核的刻度。</b>六个工具把"我觉得 A 更好"变成一张别人能复核的加权矩阵 / 概率分布。</p>
+  <p class="leadsub">源自 Cummins DFSS(CDOC 路线图)。只保留"把定性判断结构化为半定量评分"的方法——咨询现场缺测量数据,SPC/能力研究/DOE 实验这类数据密集型工具未纳入。全部单文件、本地运行、数据存在浏览器、可导出 JSON。</p>
+
+  <!-- chain -->
+  <div class="chainbox">
+    <h2>一条"需求 → 方案 → 风险"的定量链</h2>
+    <p class="ch-cap">每一步的输出喂给下一步,每一步都留下一个能复核的数字。点任意节点直接打开对应工具。</p>
+    <div class="chain">
+      <div class="step"><a class="stepcard bd-concept" href="Kano.html">
+        <div class="ph ph-concept">① 需求分类</div><div class="nm">Kano</div>
+        <div class="role">分清基本 / 期望 / 魅力</div></a></div>
+      <div class="arrow">→</div>
+      <div class="step"><a class="stepcard bd-concept" href="CE-Matrix.html">
+        <div class="ph ph-concept">② 锁定驱动</div><div class="nm">C&amp;E 矩阵</div>
+        <div class="role">找关键少数 X</div></a></div>
+      <div class="arrow">→</div>
+      <div class="step"><a class="stepcard bd-concept" href="QFD.html">
+        <div class="ph ph-concept">③ 需求传递</div><div class="nm">QFD 质量屋</div>
+        <div class="role">权重 → 方案模块优先级</div></a></div>
+      <div class="arrow">→</div>
+      <div class="step"><a class="stepcard bd-design" href="Pugh.html">
+        <div class="ph ph-design">④ 方案收敛</div><div class="nm">Pugh 比选</div>
+        <div class="role">对基准加权打分</div></a></div>
+      <div class="arrow">→</div>
+      <div class="step"><a class="stepcard bd-capability" href="FMEA.html">
+        <div class="ph ph-capability">⑤ 风险量化</div><div class="nm">FMEA / RPN</div>
+        <div class="role">RPN 排序 + 缓解</div></a></div>
+      <div class="arrow">→</div>
+      <div class="step"><a class="stepcard bd-optimize" href="MonteCarlo.html">
+        <div class="ph ph-optimize">⑥ ROI 概率</div><div class="nm">蒙特卡洛</div>
+        <div class="role">达标概率 + 区间</div></a></div>
+    </div>
+  </div>
+
+  <!-- cards -->
+  <div class="grid">
+
+    <a class="card" href="Kano.html">
+      <div class="top"><div class="icon i-kano">K</div><div class="htxt">
+        <p class="cn">Kano 模型</p><div class="en">KANO MODEL · BETTER-WORSE</div></div></div>
+      <div class="body">
+        <div class="what">把客户需求分成基本 / 期望 / 魅力三类,算 Better-Worse 满意度系数,四象限散点定位。</div>
+        <div class="out">定量产出:<b>Better / Worse 系数</b> + 四象限分类 → 哪些必须做、哪些能制造惊喜</div>
+      </div>
+      <div class="foot"><span class="tag">需求分析</span><span class="open">打开 →</span></div>
+    </a>
+
+    <a class="card" href="CE-Matrix.html">
+      <div class="top"><div class="icon i-ce">C</div><div class="htxt">
+        <p class="cn">C&amp;E 因果矩阵</p><div class="en">CAUSE &amp; EFFECT MATRIX</div></div></div>
+      <div class="body">
+        <div class="what">输出带重要度权重,过程因素逐项打关系分(1/3/9),算出每个因素的总影响分。</div>
+        <div class="out">定量产出:<b>关键因素得分排序</b> → 锁定该优先管控的"关键少数 X"</div>
+      </div>
+      <div class="foot"><span class="tag">需求分析</span><span class="open">打开 →</span></div>
+    </a>
+
+    <a class="card" href="QFD.html">
+      <div class="top"><div class="icon i-qfd">Q</div><div class="htxt">
+        <p class="cn">QFD 质量屋</p><div class="en">QUALITY FUNCTION DEPLOYMENT</div></div></div>
+      <div class="body">
+        <div class="what">客户诉求权重 × 关系矩阵,把需求定量传递到方案模块;含竞争对标规划矩阵。</div>
+        <div class="out">定量产出:<b>方案模块优先级得分</b> → 该优先投入哪个模块(链路枢纽)</div>
+      </div>
+      <div class="foot"><span class="tag">需求 → 方案</span><span class="open">打开 →</span></div>
+    </a>
+
+    <a class="card" href="Pugh.html">
+      <div class="top"><div class="icon i-pugh">P</div><div class="htxt">
+        <p class="cn">Pugh 方案比选</p><div class="en">PUGH CONCEPT SELECTION</div></div></div>
+      <div class="body">
+        <div class="what">多方案对一个基准逐准则打分(＋＋/＋/0/−/−−),加权得分排序,可迭代收敛。</div>
+        <div class="out">定量产出:<b>加权得分 + 正负计数</b> → 把"我觉得 A 好"拉回可复核的账</div>
+      </div>
+      <div class="foot"><span class="tag">方案设计</span><span class="open">打开 →</span></div>
+    </a>
+
+    <a class="card" href="FMEA.html">
+      <div class="top"><div class="icon i-fmea">F</div><div class="htxt">
+        <p class="cn">FMEA / RPN</p><div class="en">FAILURE MODE &amp; EFFECTS</div></div></div>
+      <div class="body">
+        <div class="what">失效模式按严重度 × 发生度 × 探测度算 RPN,分级配色,展示缓解前后对比。</div>
+        <div class="out">定量产出:<b>RPN 风险排序 + 降幅</b> → 风险从"高中低"升级为可排序的优先级</div>
+      </div>
+      <div class="foot"><span class="tag">风险评估</span><span class="open">打开 →</span></div>
+    </a>
+
+    <a class="card" href="MonteCarlo.html">
+      <div class="top"><div class="icon i-mc">M</div><div class="htxt">
+        <p class="cn">蒙特卡洛 ROI</p><div class="en">MONTE CARLO SIMULATION</div></div></div>
+      <div class="body">
+        <div class="what">每个不确定输入定义成分布,跑万次抽样,看输出的概率形状 + 敏感性 Tornado。</div>
+        <div class="out">定量产出:<b>达标概率 + P10–P90 区间</b> → 把"大概能回本"变成"X% 概率达标"</div>
+      </div>
+      <div class="foot"><span class="tag">ROI 测算</span><span class="open">打开 →</span></div>
+    </a>
+
+  </div>
+
+  <div class="note">
+    <b>用法提示</b>:六个工具可单用,也可按上面的链路接力。每个都自带"数字化转型"示例数据,打开即可看懂逻辑;改成自己的客户场景后,数据自动存在浏览器本地(刷新不丢),也可导出 JSON 存档。<br>
+    <b>不是替代判断,是给判断装刻度</b>——最终客户拿到的不是"我们建议做 A",而是"A 在加权矩阵得 8.3、风险 RPN 已降到 60 以下、ROI 在 80% 置信下落在 1.4–2.1x"。
+  </div>
+  <div class="foothint">源:Cummins DFSS / CDOC 课件(Concept-Design-Optimize-Capability)。工具为方法论改造,非原课件复制。</div>
+</div>
+
+<script>
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓'; }
+document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+// 进入任一工具时带上当前主题,保持统一
+document.addEventListener('click',function(e){
+  var a=e.target.closest('a[href$=".html"]'); if(!a) return;
+  var t=document.documentElement.classList.contains('dark')?'dark':'light';
+  a.setAttribute('href', a.getAttribute('href').split('?')[0]+'?theme='+t);
+});
+</script>
+</body>
+</html>

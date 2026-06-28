@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pugh 方案比选 · 咨询定量模板</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/cores/pugh.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6;
+  --pos:#2f8f5b; --pos2:#1f6f42; --neg:#c0532f; --neg2:#9c3a1c;
+  --topbar:#ffffff; --chip:#f0ece2; --hot:#fbeecb; --datum:#ece7db;
+  --rowhover:#faf8f2;
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e;
+  --pos:#46b87a; --pos2:#2f8f5b; --neg:#e07a52; --neg2:#b85636;
+  --topbar:#161c25; --chip:#232c39; --hot:#3a3320; --datum:#222a36;
+  --rowhover:#1f2733;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 18px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:16px;margin:0;font-weight:650}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{opacity:.9;color:#fff}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.wrap{padding:16px 18px 90px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:600}
+.dot{display:inline-block;min-width:22px;height:20px;border-radius:5px;text-align:center;line-height:20px;
+  font-weight:700;color:#fff;margin-right:3px;font-size:12px;padding:0 3px}
+.p2{background:var(--pos2)} .p1{background:var(--pos)} .n1{background:var(--neg)} .n2{background:var(--neg2)}
+.tablescroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.pg{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+table.pg th,table.pg td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;text-align:center;white-space:nowrap}
+table.pg tbody tr:hover td{background:var(--rowhover)}
+table.pg thead th{background:var(--chip);font-weight:600;vertical-align:bottom;position:sticky;top:0;z-index:5}
+.critname{text-align:left!important;min-width:160px;max-width:260px;white-space:normal!important;
+  position:sticky;left:0;background:var(--panel);z-index:4}
+thead .critname{z-index:6;background:var(--chip)}
+table.pg tbody tr:hover .critname{background:var(--rowhover)}
+.colh{min-width:110px}
+.colh .cn{display:flex;align-items:center;gap:4px}
+.datumcol{background:var(--datum)!important}
+.cell{cursor:pointer;font-weight:800;font-size:15px;user-select:none;min-width:48px;height:30px;transition:.1s}
+.cell:hover{outline:2px solid var(--accent);outline-offset:-2px}
+.cell.v2{background:var(--pos2);color:#fff}.cell.v1{background:var(--pos);color:#fff}
+.cell.vn1{background:var(--neg);color:#fff}.cell.vn2{background:var(--neg2);color:#fff}
+.cell.datumcell{cursor:default;color:var(--muted);font-weight:600;font-size:11px}
+.cell.datumcell:hover{outline:none}
+input.f,select.f{font-family:inherit;font-size:12px;border:1px solid transparent;background:transparent;
+  color:var(--ink);width:100%;text-align:center;padding:4px 3px;border-radius:5px}
+input.f:hover,select.f:hover{border-color:var(--line)}
+input.f:focus,select.f:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+input.critf{text-align:left;font-weight:500}
+input.num{max-width:54px}
+.scorerow td{font-weight:700;background:var(--chip)}
+.scorerow .critname{background:var(--chip)}
+.totrow td{font-size:14px}
+.barwrap{height:7px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:4px}
+.bar{height:100%;background:var(--accent);border-radius:4px;transition:width .25s}
+.bar.neg{background:var(--neg)}
+.rank1{color:var(--pos);font-weight:800}.rank2{color:var(--accent);font-weight:700}
+.delx{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;border-radius:5px;flex:none}
+.delx:hover{color:#fff;background:var(--neg)}
+.namewrap{display:flex;align-items:center;gap:2px}
+.namewrap .delx,.colh .delx{opacity:.35}
+.critname:hover .delx,.colh:hover .delx{opacity:1}
+.datumbtn{font-size:10px;border:1px solid var(--line);background:var(--panel);color:var(--muted);
+  border-radius:4px;padding:1px 5px;cursor:pointer;margin-top:2px}
+.datumbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.note{margin:16px 0 0;font-size:12px;color:var(--muted);max-width:900px}
+.note b{color:var(--ink)}
+.top3{background:var(--hot)!important}
+.addbar{margin-top:10px;display:flex;gap:8px}
+.cntpos{color:var(--pos);font-weight:700}.cntneg{color:var(--neg);font-weight:700}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button onclick="location.href='index.html?theme='+(document.documentElement.classList.contains('dark')?'dark':'light')" title="返回工具箱首页">← 工具箱</button>
+  <h1>Pugh 方案比选</h1>
+  <span class="sub">多方案对基准打分 · 加权收敛</span>
+  <span class="spacer"></span>
+  <button onclick="resetSample()">载入示例</button>
+  <button onclick="clearAll()">清空</button>
+  <button class="primary" onclick="exportJSON()">导出</button>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><b>相对基准评分</b>(点格子循环):</span>
+    <span><span class="dot p2">＋＋</span>显著更好</span>
+    <span><span class="dot p1">＋</span>更好</span>
+    <span>0 持平</span>
+    <span><span class="dot n1">−</span>更差</span>
+    <span><span class="dot n2">−−</span>显著更差</span>
+    <span style="margin-left:6px">·</span>
+    <span class="hint">列头「设为基准」切换参照方案,基准列锁定为 0</span>
+  </div>
+
+  <div class="tablescroll">
+    <table class="pg" id="pg"></table>
+  </div>
+
+  <div class="addbar">
+    <button class="add" onclick="addCrit()">＋ 加一行(评价准则)</button>
+    <button class="add" onclick="addOpt()">＋ 加一列(方案)</button>
+  </div>
+
+  <div class="note">
+    <b>怎么用</b>:左侧填评价准则 + 权重(1–5);选一列「设为基准」(通常是现状或最稳的方案);其余每个方案<b>逐准则与基准比</b>,点格子设 ＋＋/＋/0/−/−−。底部:<b>加权得分 = Σ(权重 × 评分)</b> 是主排序;同时给出正/负/持平计数(经典 Pugh 信号)。
+    <span class="hint">Pugh 是迭代工具:第一轮选出的赢家「设为基准」再跑一轮,逼出更优组合方案,直到排序稳定。负分不代表淘汰,而是提示该方案哪些准则要补强。</span>
+  </div>
+</div>
+
+<script>
+const VALS=[0,1,2,-1,-2];                 // click cycle order
+const SYM={2:'＋＋',1:'＋',0:'0','-1':'−','-2':'−−'};
+const VC={2:'v2',1:'v1','-1':'vn1','-2':'vn2',0:''};
+let uid=1; function nid(){return 'x'+(uid++);}
+let state=null;
+
+function sample(){
+  uid=1;
+  const crits=[
+    {id:nid(),name:'见效速度',weight:5},
+    {id:nid(),name:'实施成本可控',weight:4},
+    {id:nid(),name:'风险可控',weight:4},
+    {id:nid(),name:'组织适配度',weight:3},
+    {id:nid(),name:'可扩展性',weight:3},
+    {id:nid(),name:'客户体验提升',weight:5},
+  ];
+  const opts=[
+    {id:nid(),name:'现状(基准)'},
+    {id:nid(),name:'A 自建中台'},
+    {id:nid(),name:'B SaaS 采购'},
+    {id:nid(),name:'C 渐进改造'},
+  ];
+  const c=(ri,ci)=>crits[ri].id+'|'+opts[ci].id, cell={};
+  //                现状 A自建 BSaaS C渐进
+  const m=[ [0,-1, 2, 1],   // 见效速度
+            [0,-2, 1, 1],   // 成本可控
+            [0,-1, 1, 2],   // 风险可控
+            [0, 1,-1, 2],   // 组织适配
+            [0, 2, 0,-1],   // 可扩展性
+            [0, 2, 1, 1] ]; // 客户体验
+  m.forEach((row,ri)=>row.forEach((v,ci)=>{ if(v) cell[c(ri,ci)]=v; }));
+  return {title:'数字化方案比选', datumId:opts[0].id, crits, opts, cell};
+}
+function load(){
+  try{ const s=localStorage.getItem('pugh-state');
+    if(s){ state=JSON.parse(s); let mx=0;
+      state.crits.concat(state.opts).forEach(o=>{const n=parseInt((o.id||'x0').slice(1));if(n>mx)mx=n;}); uid=mx+1; return; }
+  }catch(e){}
+  state=sample();
+}
+function save(){ try{localStorage.setItem('pugh-state',JSON.stringify(state));}catch(e){} }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cval(crid,oid){ return state.cell[crid+'|'+oid]||0; }
+function isDatum(oid){ return oid===state.datumId; }
+
+function build(){
+  const crits=state.crits, opts=state.opts;
+  let h='<thead><tr>';
+  h+='<th class="critname">评价准则 ＼ 方案</th><th class="chip">权重</th>';
+  opts.forEach(o=>{
+    const d=isDatum(o.id);
+    h+='<th class="colh '+(d?'datumcol':'')+'"><div class="cn"><input class="f" value="'+esc(o.name)+'" oninput="setOptName(\''+o.id+'\',this.value)"><button class="delx" onclick="delOpt(\''+o.id+'\')">✕</button></div>'+
+       '<button class="datumbtn '+(d?'on':'')+'" onclick="setDatum(\''+o.id+'\')">'+(d?'★ 基准':'设为基准')+'</button></th>';
+  });
+  h+='</tr></thead><tbody>';
+  crits.forEach(r=>{
+    h+='<tr>';
+    h+='<td class="critname"><div class="namewrap"><button class="delx" onclick="delCrit(\''+r.id+'\')">✕</button><input class="f critf" value="'+esc(r.name)+'" oninput="setCritName(\''+r.id+'\',this.value)"></div></td>';
+    h+='<td><input class="f num" type="number" min="1" max="5" step="1" value="'+r.weight+'" oninput="setWeight(\''+r.id+'\',this.value)"></td>';
+    opts.forEach(o=>{
+      const d=isDatum(o.id), v=cval(r.id,o.id);
+      if(d){ h+='<td class="cell datumcell datumcol">基准</td>'; }
+      else{ h+='<td id="cell-'+r.id+'-'+o.id+'" class="cell '+(VC[v]||'')+'" onclick="cycleCell(\''+r.id+'\',\''+o.id+'\')">'+(SYM[v]||'0')+'</td>'; }
+    });
+    h+='</tr>';
+  });
+  // score rows
+  h+='<tr class="scorerow totrow"><td class="critname">加权得分 = Σ(权重×评分)</td><td></td>';
+  opts.forEach(o=>{ h+='<td id="ws-'+o.id+'">—</td>'; });
+  h+='</tr>';
+  h+='<tr class="scorerow"><td class="critname">排序 / 占比</td><td></td>';
+  opts.forEach(o=>{ h+='<td id="wr-'+o.id+'">—</td>'; });
+  h+='</tr>';
+  h+='<tr class="scorerow"><td class="critname">正 / 负 / 持平(计数)</td><td></td>';
+  opts.forEach(o=>{ h+='<td id="cnt-'+o.id+'">—</td>'; });
+  h+='</tr>';
+  h+='</tbody>';
+  document.getElementById('pg').innerHTML=h;
+  recompute(); save();
+  document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+}
+
+function recompute(){
+  const crits=state.crits, opts=state.opts;
+  const sc=opts.map(o=>{
+    let w=0,pos=0,neg=0,same=0,datum=isDatum(o.id);
+    crits.forEach(r=>{ const v=datum?0:cval(r.id,o.id);
+      w+=(parseFloat(r.weight)||0)*v;
+      if(v>0)pos++; else if(v<0)neg++; else same++; });
+    return {id:o.id,w,pos,neg,same,datum};
+  });
+  const nonD=sc.filter(s=>!s.datum);
+  const ranked=[...nonD].sort((a,b)=>b.w-a.w);
+  const maxAbs=Math.max(1,...sc.map(s=>Math.abs(s.w)));
+  const totPos=ranked.reduce((a,b)=>a+Math.max(0,b.w),0)||1;
+  sc.forEach(s=>{
+    const ws=document.getElementById('ws-'+s.id);
+    if(ws){ if(s.datum){ ws.textContent='基准(0)'; ws.className=''; }
+      else{ ws.textContent=(s.w>0?'+':'')+s.w; ws.className=(ranked[0]&&ranked[0].id===s.id&&s.w>0)?'top3':''; } }
+    const wr=document.getElementById('wr-'+s.id);
+    if(wr){ if(s.datum){ wr.textContent='—'; wr.className=''; }
+      else{ const rank=ranked.findIndex(x=>x.id===s.id)+1, rc=rank===1?'rank1':(rank===2?'rank2':'');
+        const pct=s.w>0?(s.w/totPos*100):0;
+        wr.className=(rank===1&&s.w>0)?'top3':'';
+        wr.innerHTML='<span class="'+rc+'">#'+rank+'</span> '+(s.w>0?pct.toFixed(0)+'%':'—')+
+          '<div class="barwrap"><div class="bar '+(s.w<0?'neg':'')+'" style="width:'+(Math.abs(s.w)/maxAbs*100)+'%"></div></div>'; } }
+    const cnt=document.getElementById('cnt-'+s.id);
+    if(cnt){ if(s.datum) cnt.textContent='—';
+      else cnt.innerHTML='<span class="cntpos">+'+s.pos+'</span> / <span class="cntneg">−'+s.neg+'</span> / '+s.same; }
+  });
+  save();
+}
+
+function setCritName(id,v){ const r=state.crits.find(x=>x.id===id); if(r){r.name=v; save();} }
+function setOptName(id,v){ const o=state.opts.find(x=>x.id===id); if(o){o.name=v; save();} }
+function setWeight(id,v){ const r=state.crits.find(x=>x.id===id); if(r){r.weight=v; recompute();} }
+function setDatum(id){ state.datumId=id; build(); }
+function cycleCell(rid,oid){
+  const k=rid+'|'+oid, cur=state.cell[k]||0, idx=VALS.indexOf(cur), next=VALS[(idx+1)%VALS.length];
+  if(next)state.cell[k]=next; else delete state.cell[k];
+  const cell=document.getElementById('cell-'+rid+'-'+oid);
+  cell.className='cell '+(VC[next]||''); cell.textContent=SYM[next]||'0';
+  recompute();
+}
+function addCrit(){ state.crits.push({id:nid(),name:'新准则',weight:3}); build(); }
+function addOpt(){ state.opts.push({id:nid(),name:'新方案'}); build(); }
+function delCrit(id){ state.crits=state.crits.filter(x=>x.id!==id); Object.keys(state.cell).forEach(k=>{if(k.startsWith(id+'|'))delete state.cell[k];}); build(); }
+function delOpt(id){
+  state.opts=state.opts.filter(x=>x.id!==id);
+  Object.keys(state.cell).forEach(k=>{if(k.endsWith('|'+id))delete state.cell[k];});
+  if(state.datumId===id) state.datumId=state.opts[0]?state.opts[0].id:null;
+  build();
+}
+function resetSample(){ if(!confirm('用示例数据覆盖当前内容?'))return; state=sample(); build(); }
+function clearAll(){ if(!confirm('清空所有准则和方案?'))return; state={title:'',datumId:null,crits:[],opts:[],cell:{}}; build(); }
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Pugh-'+(state.title||'export')+'.json'; a.click();
+}
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓'; }
+
+load(); build();
+</script>
+</body>
+</html>

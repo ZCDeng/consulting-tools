@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C&E 因果矩阵 · 咨询定量模板</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/cores/ce.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6;
+  --r9:#1f5fa8; --r3:#5b8fc9; --r1:#a9c4e2;
+  --good:#2f8f5b; --warn:#c98a1e; --bad:#c0532f;
+  --topbar:#ffffff; --chip:#f0ece2; --hot:#fbeecb;
+  --rowhover:#faf8f2;
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e;
+  --r9:#5b9be0; --r3:#3f6e9e; --r1:#2c4a66;
+  --good:#46b87a; --warn:#e0a93f; --bad:#e07a52;
+  --topbar:#161c25; --chip:#232c39; --hot:#3a3320;
+  --rowhover:#1f2733;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 18px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:16px;margin:0;font-weight:650}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{opacity:.9;color:#fff}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.wrap{padding:16px 18px 90px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:600}
+.dot{display:inline-block;width:20px;height:20px;border-radius:5px;text-align:center;line-height:20px;
+  font-weight:700;color:#fff;margin-right:3px;font-size:12px}
+.d9{background:var(--r9)} .d3{background:var(--r3)} .d1{background:var(--r1);color:var(--ink)}
+.tablescroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.ce{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+table.ce th,table.ce td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;text-align:center;white-space:nowrap}
+table.ce tbody tr:hover td{background:var(--rowhover)}
+table.ce thead th{background:var(--chip);font-weight:600;vertical-align:bottom;position:sticky;top:0;z-index:5}
+.xname{text-align:left!important;min-width:180px;max-width:280px;white-space:normal!important;
+  position:sticky;left:0;background:var(--panel);z-index:4}
+thead .xname{z-index:6;background:var(--chip)}
+table.ce tbody tr:hover .xname{background:var(--rowhover)}
+.grp{background:var(--accent-soft)!important;color:var(--accent)}
+.colh{min-width:104px}
+.colh .cn{display:flex;align-items:center;gap:4px}
+.cell{cursor:pointer;font-weight:700;font-size:16px;user-select:none;min-width:44px;height:30px;transition:.1s}
+.cell:hover{outline:2px solid var(--accent);outline-offset:-2px}
+.c9{background:var(--r9);color:#fff} .c3{background:var(--r3);color:#fff} .c1{background:var(--r1)}
+input.f{font-family:inherit;font-size:12px;border:1px solid transparent;background:transparent;
+  color:var(--ink);width:100%;text-align:center;padding:4px 3px;border-radius:5px}
+input.f:hover{border-color:var(--line)}
+input.f:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+input.xf{text-align:left;font-weight:500}
+input.colf{font-weight:600}
+input.num{max-width:60px}
+input.impf{font-weight:700;color:var(--accent)}
+.improw td,.improw th{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.scorecol{min-width:118px;background:var(--chip)}
+.scoreval{font-weight:800;font-size:15px}
+.rankcol{min-width:90px;background:var(--chip)}
+.barwrap{height:7px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:4px}
+.bar{height:100%;background:var(--accent);border-radius:4px;transition:width .25s}
+.rank1{color:var(--good);font-weight:800}.rank2{color:var(--accent);font-weight:700}.rank3{color:var(--warn);font-weight:700}
+.delx{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;
+  padding:2px 5px;border-radius:5px;flex:none}
+.delx:hover{color:#fff;background:var(--bad)}
+.namewrap{display:flex;align-items:center;gap:2px}
+.namewrap .delx{opacity:.35}
+.xname:hover .delx,.colh:hover .delx{opacity:1}
+.top3{background:var(--hot)!important}
+.note{margin:16px 0 0;font-size:12px;color:var(--muted);max-width:900px}
+.note b{color:var(--ink)}
+.hint{font-size:11px;color:var(--muted)}
+.addbar{margin-top:10px;display:flex;gap:8px}
+.panel2{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+.panel2 h3{margin:0 0 8px;font-size:13px}
+.vital{margin:0;padding:0;list-style:none}
+.vital li{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.vital li:last-child{border-bottom:none}
+.vital .vr{flex:none;width:26px;height:26px;border-radius:6px;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.vital li.hot .vr{background:var(--good)}
+.vital .vn{flex:1;font-weight:600}
+.vital .vs{flex:none;color:var(--muted);font-variant-numeric:tabular-nums}
+.vital .vs b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button onclick="location.href='index.html?theme='+(document.documentElement.classList.contains('dark')?'dark':'light')" title="返回工具箱首页">← 工具箱</button>
+  <h1>C&amp;E 因果矩阵</h1>
+  <span class="sub">输出权重 × 关系强度 → 锁定关键输入</span>
+  <span class="spacer"></span>
+  <button onclick="resetSample()">载入示例</button>
+  <button onclick="clearAll()">清空</button>
+  <button class="primary" onclick="exportJSON()">导出</button>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><b>关系强度</b>(点格子循环):</span>
+    <span><span class="dot d9">●</span>9 强</span>
+    <span><span class="dot d3">◐</span>3 中</span>
+    <span><span class="dot d1">○</span>1 弱</span>
+    <span>空 = 无关</span>
+    <span style="margin-left:6px">·</span>
+    <span><b>列</b>=输出(Y)带重要度1–10 · <b>行</b>=过程输入(X)</span>
+    <span style="margin-left:6px">·</span>
+    <span class="hint">行/列名旁的 <b style="color:var(--bad)">✕</b> 删除,鼠标移上去显示</span>
+  </div>
+
+  <div class="tablescroll">
+    <table class="ce" id="ce"></table>
+  </div>
+
+  <div class="addbar">
+    <button class="add" onclick="addRow()">＋ 加一行(过程输入 X)</button>
+    <button class="add" onclick="addCol()">＋ 加一列(输出 Y)</button>
+  </div>
+
+  <div class="note">
+    <b>怎么用</b>:顶部每列填一个输出/客户要求(Y)及其<b>重要度(1–10)</b>;左侧每行填一个过程输入/因素(X);中间点格子设 X 对 Y 的关系强度(0/1/3/9)。右侧<b>总分 = Σ(列重要度 × 该行关系值)</b>,排序后高分的 X 就是要优先管控的<b>关键少数</b>(Top 1–3 高亮)。
+    <span class="hint">改任何数值即时刷新得分,不用回车。这是 QFD 的轻量转置版,聚焦"哪些 X 最影响 Y"。</span>
+  </div>
+
+  <div class="panel2">
+    <h3>关键少数 X 排序(可直接抄进交付物)</h3>
+    <ul class="vital" id="vital"></ul>
+  </div>
+</div>
+
+<script>
+let uid=1; function nid(){return 'x'+(uid++);}
+let state=null;
+const RC={9:'c9',3:'c3',1:'c1'};
+function sym(v){ return {9:'●',3:'◐',1:'○',0:''}[v]; }
+
+function sample(){
+  uid=1;
+  const cols=[
+    {id:nid(),name:'复购率↑',imp:10},
+    {id:nid(),name:'运营成本↓',imp:8},
+    {id:nid(),name:'决策时效↑',imp:6},
+    {id:nid(),name:'客户满意度↑',imp:9},
+  ];
+  const rows=[
+    {id:nid(),name:'会员数据质量'},
+    {id:nid(),name:'营销触达频次'},
+    {id:nid(),name:'流程自动化率'},
+    {id:nid(),name:'报表实时性'},
+    {id:nid(),name:'员工数字化技能'},
+    {id:nid(),name:'商品标签体系'},
+    {id:nid(),name:'系统稳定性'},
+  ];
+  const rel={};
+  // 列序: 复购率 运营成本 决策时效 客户满意度
+  const m=[
+    [9,3,3,9],   // 会员数据质量
+    [9,1,1,3],   // 营销触达频次
+    [3,9,3,3],   // 流程自动化率
+    [1,3,9,1],   // 报表实时性
+    [3,3,1,3],   // 员工数字化技能
+    [9,1,1,3],   // 商品标签体系
+    [1,3,1,9],   // 系统稳定性
+  ];
+  m.forEach((row,ri)=>row.forEach((v,ci)=>{ if(v) rel[rows[ri].id+'|'+cols[ci].id]=v; }));
+  return {title:'数字化转型:哪些因素最影响结果', cols, rows, rel};
+}
+function load(){
+  try{ const s=localStorage.getItem('ce-state');
+    if(s){ state=JSON.parse(s); let mx=0;
+      state.rows.concat(state.cols).forEach(o=>{const n=parseInt((o.id||'x0').slice(1));if(n>mx)mx=n;}); uid=mx+1; return; }
+  }catch(e){}
+  state=sample();
+}
+function save(){ try{localStorage.setItem('ce-state',JSON.stringify(state));}catch(e){} }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function relVal(rid,cid){ return state.rel[rid+'|'+cid]||0; }
+function rowScore(r){ let s=0; state.cols.forEach(c=>s+=(parseFloat(c.imp)||0)*relVal(r.id,c.id)); return s; }
+
+/* ---------- full build (only on add/delete/load/theme) ---------- */
+function build(){
+  const rows=state.rows, cols=state.cols;
+  let h='<thead>';
+  // row 1: 输出名 + score/rank headers (rowspan 2)
+  h+='<tr>';
+  h+='<th class="xname" rowspan="2">过程输入(X) ＼ 输出(Y)</th>';
+  cols.forEach(c=>{
+    h+='<th class="colh grp"><div class="cn"><input class="f colf" value="'+esc(c.name)+'" oninput="setColName(\''+c.id+'\',this.value)"><button class="delx" title="删除此列" onclick="delCol(\''+c.id+'\')">✕</button></div></th>';
+  });
+  h+='<th class="scorecol" rowspan="2">总分<br><span class="hint">Σ(重要度×关系)</span></th>';
+  h+='<th class="rankcol" rowspan="2">排序 / 占比</th>';
+  h+='</tr>';
+  // row 2: 重要度
+  h+='<tr class="improw">';
+  cols.forEach(c=>{
+    h+='<td><input class="f num impf" type="number" min="1" max="10" step="1" value="'+c.imp+'" oninput="setImp(\''+c.id+'\',this.value)" title="重要度 1-10"></td>';
+  });
+  h+='</tr>';
+  h+='</thead><tbody>';
+  rows.forEach(r=>{
+    h+='<tr>';
+    h+='<td class="xname"><div class="namewrap"><button class="delx" title="删除此行" onclick="delRow(\''+r.id+'\')">✕</button><input class="f xf" value="'+esc(r.name)+'" oninput="setRowName(\''+r.id+'\',this.value)"></div></td>';
+    cols.forEach(c=>{ const v=relVal(r.id,c.id);
+      h+='<td id="cell-'+r.id+'-'+c.id+'" class="cell '+(RC[v]||'')+'" onclick="cycleRel(\''+r.id+'\',\''+c.id+'\')">'+sym(v)+'</td>'; });
+    h+='<td class="scorecol scoreval" id="rs-'+r.id+'">—</td>';
+    h+='<td class="rankcol" id="rk-'+r.id+'">—</td>';
+    h+='</tr>';
+  });
+  h+='</tbody>';
+  document.getElementById('ce').innerHTML=h;
+  recompute(); save();
+  document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+}
+
+/* ---------- light recompute (on every value change) ---------- */
+function recompute(){
+  const rows=state.rows;
+  const sc=rows.map(r=>({id:r.id,name:r.name,score:rowScore(r)}));
+  const tot=sc.reduce((a,b)=>a+b.score,0)||1;
+  const max=Math.max(...sc.map(o=>o.score),1);
+  const ranked=[...sc].sort((a,b)=>b.score-a.score);
+  sc.forEach(o=>{
+    const rank=ranked.findIndex(x=>x.id===o.id)+1, pct=o.score/tot*100;
+    const top=rank<=3 && o.score>0;
+    const rs=document.getElementById('rs-'+o.id);
+    if(rs){ rs.textContent=Math.round(o.score); rs.className='scorecol scoreval'+(top?' top3':''); }
+    const rk=document.getElementById('rk-'+o.id);
+    if(rk){ const rc=rank===1?'rank1':(rank===2?'rank2':(rank===3?'rank3':''));
+      rk.className='rankcol'+(top?' top3':'');
+      rk.innerHTML='<span class="'+rc+'">#'+rank+'</span> '+pct.toFixed(0)+'%<div class="barwrap"><div class="bar" style="width:'+(o.score/max*100)+'%"></div></div>'; }
+  });
+  // vital-few list
+  const vital=document.getElementById('vital');
+  if(vital){
+    const top=ranked.filter(o=>o.score>0);
+    if(top.length===0){ vital.innerHTML='<li class="hint">尚无打分。点中间格子设关系强度后,这里自动列出关键少数 X 排序。</li>'; }
+    else{ vital.innerHTML=top.map((o,i)=>
+      '<li'+(i<3?' class="hot"':'')+'><span class="vr">'+(i+1)+'</span><span class="vn">'+esc(o.name)+'</span>'+
+      '<span class="vs"><b>'+Math.round(o.score)+'</b> 分 · '+(o.score/tot*100).toFixed(0)+'%</span></li>').join(''); }
+  }
+  save();
+}
+
+/* ---------- mutations: silent where possible ---------- */
+function setRowName(id,v){ const r=state.rows.find(x=>x.id===id); if(r){r.name=v; save(); recompute();} }
+function setColName(id,v){ const c=state.cols.find(x=>x.id===id); if(c){c.name=v; save();} }
+function setImp(id,v){ const c=state.cols.find(x=>x.id===id); if(c){c.imp=v; recompute();} }
+function cycleRel(rid,cid){
+  const k=rid+'|'+cid, cur=state.rel[k]||0, next={0:1,1:3,3:9,9:0}[cur];
+  if(next)state.rel[k]=next; else delete state.rel[k];
+  const cell=document.getElementById('cell-'+rid+'-'+cid);
+  cell.className='cell '+(RC[next]||''); cell.textContent=sym(next);
+  recompute();
+}
+function addRow(){ state.rows.push({id:nid(),name:'新输入因素'}); build(); }
+function addCol(){ state.cols.push({id:nid(),name:'新输出',imp:5}); build(); }
+function delRow(id){ state.rows=state.rows.filter(x=>x.id!==id); Object.keys(state.rel).forEach(k=>{if(k.startsWith(id+'|'))delete state.rel[k];}); build(); }
+function delCol(id){ state.cols=state.cols.filter(x=>x.id!==id); Object.keys(state.rel).forEach(k=>{if(k.endsWith('|'+id))delete state.rel[k];}); build(); }
+function resetSample(){ if(!confirm('用示例数据覆盖当前内容?'))return; state=sample(); build(); }
+function clearAll(){ if(!confirm('清空所有输入和输出?'))return; state={title:'',cols:[],rows:[],rel:{}}; build(); }
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='CE-Matrix-'+(state.title||'export')+'.json'; a.click();
+}
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓'; }
+
+load(); build();
+</script>
+</body>
+</html>

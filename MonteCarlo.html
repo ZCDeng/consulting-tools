@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>蒙特卡洛 ROI 模拟器 · 咨询定量模板</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/cores/montecarlo.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6;
+  --good:#2f8f5b; --warn:#c98a1e; --bad:#c0532f;
+  --topbar:#ffffff; --chip:#f0ece2; --hot:#fbeecb;
+  --barlo:#a9c4e2; --rowhover:#faf8f2;
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e;
+  --good:#46b87a; --warn:#e0a93f; --bad:#e07a52;
+  --topbar:#161c25; --chip:#232c39; --hot:#3a3320;
+  --barlo:#2c4a66; --rowhover:#1f2733;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 18px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:16px;margin:0;font-weight:650}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{opacity:.9;color:#fff}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.wrap{padding:16px 18px 90px;max-width:1180px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:600}
+.hint{font-size:11px;color:var(--muted)}
+.tablescroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.mc{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+table.mc th,table.mc td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;text-align:center;white-space:nowrap}
+table.mc th:last-child,table.mc td:last-child{border-right:none}
+table.mc tbody tr:hover td{background:var(--rowhover)}
+table.mc thead th{background:var(--chip);font-weight:600;vertical-align:middle}
+.varname{text-align:left!important;min-width:150px}
+.cparam{text-align:left!important;min-width:280px}
+input.f,select.f{font-family:inherit;font-size:12px;border:1px solid transparent;background:transparent;
+  color:var(--ink);width:100%;text-align:center;padding:4px 3px;border-radius:5px}
+input.f:hover,select.f:hover{border-color:var(--line)}
+input.f:focus,select.f:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+input.varf{text-align:left;font-weight:500}
+input.unitf{max-width:84px;color:var(--muted)}
+select.f{cursor:pointer}
+.params{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.pfield{display:flex;flex-direction:column;align-items:center;gap:1px}
+.pfield label{font-size:10px;color:var(--muted)}
+input.pnum{width:66px;text-align:center;border:1px solid var(--line);background:var(--panel)}
+input.pnum:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+.delx{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;
+  padding:2px 5px;border-radius:5px;flex:none}
+.delx:hover{color:#fff;background:var(--bad)}
+.namewrap{display:flex;align-items:center;gap:2px}
+.namewrap .delx{opacity:.35}
+.varname:hover .delx{opacity:1}
+.addbar{margin-top:10px;display:flex;gap:8px}
+.modelbox{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.modelrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.modelrow label.k{font-size:12px;color:var(--muted);font-weight:600;min-width:64px}
+input.formula{flex:1;min-width:320px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 9px;border-radius:7px}
+input.formula:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+input.tgt{width:120px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 9px;border-radius:7px;text-align:center}
+input.tgt:focus{border-color:var(--accent);outline:none}
+select.dir{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 9px;border-radius:7px;cursor:pointer;font-size:13px}
+.errbox{display:none;margin-top:10px;background:rgba(192,83,47,.12);border:1px solid var(--bad);color:var(--bad);
+  padding:9px 12px;border-radius:8px;font-size:12px}
+.errbox.on{display:block}
+.simstat{margin-top:8px;font-size:12px;color:var(--good);min-height:16px;font-variant-numeric:tabular-nums}
+.simstat.err{color:var(--bad)}
+@keyframes flashcard{0%{box-shadow:0 0 0 2px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+.flash{animation:flashcard .5s ease-out}
+.outsec{margin-top:18px;display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:820px){.outsec{grid-template-columns:300px 1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin:0 0 10px;font-size:13px;font-weight:650}
+.bigprob{text-align:center}
+.bigprob .pct{font-size:46px;font-weight:800;line-height:1.05;color:var(--good)}
+.bigprob .pct.low{color:var(--bad)} .bigprob .pct.mid{color:var(--warn)}
+.bigprob .cap{font-size:12px;color:var(--muted);margin-top:4px}
+.bigprob .meta{font-size:11px;color:var(--muted);margin-top:8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--chip);border-radius:8px;padding:8px 6px;text-align:center}
+.stat .v{font-size:15px;font-weight:700}
+.stat .l{font-size:10px;color:var(--muted);margin-top:2px}
+.svgwrap{width:100%;overflow:hidden}
+svg{display:block;width:100%;height:auto}
+.tor-row{display:grid;grid-template-columns:118px 1fr 70px;align-items:center;gap:8px;margin:5px 0;font-size:12px}
+.tor-name{text-align:right;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tor-track{position:relative;height:16px;background:var(--chip);border-radius:4px}
+.tor-mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
+.tor-bar{position:absolute;top:2px;height:12px;border-radius:3px}
+.tor-val{font-variant-numeric:tabular-nums;color:var(--muted)}
+.note{margin:18px 0 0;font-size:12px;color:var(--muted);max-width:900px}
+.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button onclick="location.href='index.html?theme='+(document.documentElement.classList.contains('dark')?'dark':'light')" title="返回工具箱首页">← 工具箱</button>
+  <h1>蒙特卡洛 ROI 模拟器</h1>
+  <span class="sub">单点估算 → 概率分布 · 达标概率</span>
+  <span class="spacer"></span>
+  <button onclick="resetSample()">载入示例</button>
+  <button onclick="clearAll()">清空</button>
+  <button class="primary" onclick="exportJSON()">导出</button>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><b>把每个不确定输入定义成分布</b>,跑 <b id="iterlbl">10000</b> 次随机抽样,看输出的概率形状。</span>
+    <span class="hint">改数值即时重算,不用回车。变量名要和公式里写的一致(支持中文)。</span>
+  </div>
+
+  <div class="tablescroll">
+    <table class="mc" id="vartbl"></table>
+  </div>
+
+  <div class="addbar">
+    <button class="add" onclick="addVar()">＋ 加一个变量</button>
+  </div>
+
+  <div class="modelbox">
+    <div class="modelrow">
+      <label class="k">输出公式</label>
+      <input class="formula" id="formula" placeholder="用变量名写表达式,如 (节省 + 增收) * 3 - 投入 - 运维 * 3" oninput="setFormula(this.value)">
+    </div>
+    <div class="modelrow">
+      <label class="k">目标值</label>
+      <select class="dir" id="dir" onchange="setDir(this.value)">
+        <option value="ge">输出 ≥</option>
+        <option value="le">输出 ≤</option>
+      </select>
+      <input class="tgt" id="target" type="number" step="any" placeholder="200" oninput="setTarget(this.value)">
+      <span class="hint">达标概率 = P(输出满足该方向)</span>
+    </div>
+    <div class="errbox" id="errbox"></div>
+    <div class="simstat" id="simstat"></div>
+  </div>
+
+  <div class="outsec">
+    <div class="card bigprob">
+      <h3>达标概率</h3>
+      <div class="pct" id="probpct">—</div>
+      <div class="cap" id="probcap">设置公式与目标后计算</div>
+      <div class="meta" id="probmeta"></div>
+    </div>
+    <div class="card">
+      <h3>关键统计</h3>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>输出分布直方图<span class="hint" style="font-weight:400"> · 约 30 个 bin,竖线为目标值</span></h3>
+    <div class="svgwrap" id="hist"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>敏感性 Tornado<span class="hint" style="font-weight:400"> · 各变量与输出的皮尔逊相关系数(按绝对值排序)</span></h3>
+    <div id="tornado"></div>
+  </div>
+
+  <div class="note">
+    <b>怎么用</b>:左表把每个不确定输入选一种分布(<b>三角</b>最常用,只需最小/最可能/最大三个数,适合让客户口头给区间);写一条<b>输出公式</b>用变量名组合;设<b>目标值</b>和方向。模拟器返回的不是一个数,而是<b>均值 / P10–P90 区间 / 达标概率</b>——把"大概能回本"变成"有 X% 概率达标"。
+    <span class="hint">Tornado 越长的条越是不确定性的主要来源,优先去收窄它的区间(做更细的尽调)能最有效地降低风险。固定值变量不参与抽样、不上 Tornado。</span>
+  </div>
+</div>
+
+<script>
+const ITER=10000;
+const DISTS={
+  tri:{label:'三角分布', fields:[['min','最小'],['mode','最可能'],['max','最大']]},
+  norm:{label:'正态分布', fields:[['mean','均值'],['sd','标准差']]},
+  unif:{label:'均匀分布', fields:[['min','最小'],['max','最大']]},
+  fixed:{label:'固定值', fields:[['val','值']]},
+};
+let uid=1; function nid(){return 'x'+(uid++);}
+let state=null;
+
+function sample(){
+  uid=1;
+  return {
+    title:'数字化转型 ROI(3 年)',
+    vars:[
+      {id:nid(), name:'节省', dist:'tri', p:{min:80,  mode:120, max:160}, unit:'万元'},
+      {id:nid(), name:'增收', dist:'tri', p:{min:100, mode:180, max:280}, unit:'万元'},
+      {id:nid(), name:'投入', dist:'tri', p:{min:200, mode:260, max:350}, unit:'万元'},
+      {id:nid(), name:'运维', dist:'tri', p:{min:30,  mode:45,  max:70 }, unit:'万元'},
+    ],
+    formula:'(节省 + 增收) * 3 - 投入 - 运维 * 3',
+    target:400, dir:'ge',
+  };
+}
+function load(){
+  try{ const s=localStorage.getItem('montecarlo-state');
+    if(s){ state=JSON.parse(s); let mx=0;
+      (state.vars||[]).forEach(o=>{const n=parseInt((o.id||'x0').slice(1));if(n>mx)mx=n;}); uid=mx+1; return; }
+  }catch(e){}
+  state=sample();
+}
+function save(){ try{localStorage.setItem('montecarlo-state',JSON.stringify(state));}catch(e){} }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ---------- full build (add / delete / dist change / load) ---------- */
+function build(){
+  let h='<thead><tr><th class="varname">变量名</th><th>分布类型</th><th class="cparam">参数</th><th>单位</th></tr></thead><tbody>';
+  state.vars.forEach(v=>{
+    h+='<tr>';
+    h+='<td class="varname"><div class="namewrap"><button class="delx" title="删除此变量" onclick="delVar(\''+v.id+'\')">✕</button>'+
+       '<input class="f varf" value="'+esc(v.name)+'" oninput="setName(\''+v.id+'\',this.value)"></div></td>';
+    h+='<td><select class="f" onchange="setDist(\''+v.id+'\',this.value)">'+
+       Object.keys(DISTS).map(k=>'<option value="'+k+'" '+(k===v.dist?'selected':'')+'>'+DISTS[k].label+'</option>').join('')+'</select></td>';
+    h+='<td class="cparam">'+paramsHTML(v)+'</td>';
+    h+='<td><input class="f unitf" value="'+esc(v.unit||'')+'" placeholder="—" oninput="setUnit(\''+v.id+'\',this.value)"></td>';
+    h+='</tr>';
+  });
+  if(!state.vars.length) h+='<tr><td colspan="4" style="color:var(--muted);padding:14px">还没有变量,点下方「＋ 加一个变量」开始。</td></tr>';
+  h+='</tbody>';
+  document.getElementById('vartbl').innerHTML=h;
+  document.getElementById('formula').value=state.formula||'';
+  document.getElementById('target').value=(state.target??'');
+  document.getElementById('dir').value=state.dir||'ge';
+  document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+  recompute(); save();
+}
+function paramsHTML(v){
+  const def=DISTS[v.dist]||DISTS.fixed;
+  return '<div class="params">'+def.fields.map(f=>
+    '<div class="pfield"><label>'+f[1]+'</label>'+
+    '<input class="pnum" type="number" step="any" value="'+(v.p[f[0]]??'')+'" oninput="setP(\''+v.id+'\',\''+f[0]+'\',this.value)"></div>'
+  ).join('')+'</div>';
+}
+
+/* ---------- simulation ---------- */
+function rtri(min,mode,max){
+  if(!(max>min)) return min;
+  if(mode<min)mode=min; if(mode>max)mode=max;
+  const u=Math.random(), F=(mode-min)/(max-min);
+  if(u<F) return min+Math.sqrt(u*(max-min)*(mode-min));
+  return max-Math.sqrt((1-u)*(max-min)*(max-mode));
+}
+function rnorm(mean,sd){
+  let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random();
+  return mean+sd*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function sampleVar(v){
+  const p=v.p;
+  switch(v.dist){
+    case 'tri':  return rtri(+p.min,+p.mode,+p.max);
+    case 'norm': return rnorm(+p.mean,+p.sd);
+    case 'unif': return +p.min+(+p.max-+p.min)*Math.random();
+    case 'fixed':return +p.val;
+  }
+  return 0;
+}
+function compile(vars){
+  try{ return {fn:ToolkitCores.montecarlo.compile(vars,state.formula)}; }
+  catch(e){ return {error:e.message||String(e)}; }
+}
+function simulate(){
+  const vars=state.vars, names=vars.map(v=>v.name);
+  if(!vars.length) return {error:'还没有任何变量。'};
+  if(!state.formula||!state.formula.trim()) return {error:'请填写输出公式。'};
+  const c=compile(vars); if(c.error) return {error:c.error};
+  const fn=c.fn, N=ITER, out=new Float64Array(N);
+  const samples=vars.map(()=>new Float64Array(N));
+  const args=new Array(vars.length);
+  for(let i=0;i<N;i++){
+    for(let j=0;j<vars.length;j++){ const s=sampleVar(vars[j]); samples[j][i]=s; args[j]=s; }
+    let y;
+    try{ y=fn(args); }
+    catch(e){ return {error:'公式求值错误:'+e.message}; }
+    if(typeof y!=='number'||!isFinite(y)) return {error:'公式结果不是有限数值,检查参数是否填全。'};
+    out[i]=y;
+  }
+  return {out,samples,names};
+}
+
+function fmt(x){ if(x==null||!isFinite(x))return '—';
+  const r=Math.round(x*10)/10;
+  return r.toLocaleString('zh-CN',{maximumFractionDigits:1}); }
+
+/* ---------- light recompute (debounced sim + render) ---------- */
+let simTimer=null;
+function recompute(){ clearTimeout(simTimer); simTimer=setTimeout(runSim,90); }
+function runSim(){
+  const res=simulate();
+  const eb=document.getElementById('errbox'), st=document.getElementById('simstat');
+  if(res.error){
+    eb.textContent='⚠ '+res.error; eb.classList.add('on');
+    st.className='simstat err'; st.textContent='✕ 未重算 · 修正上面的问题后会自动重算';
+    return;   // 保留上一次成功的结果,不清空,避免界面看起来「死掉」
+  }
+  eb.classList.remove('on');
+  render(res);
+  const now=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  st.className='simstat'; st.textContent='✓ 已重算 · '+now+' · '+ITER.toLocaleString()+' 次抽样';
+  const card=document.querySelector('.bigprob');
+  if(card){ card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
+}
+
+function render(res){
+  const out=res.out, N=out.length;
+  const sorted=Float64Array.from(out).sort();
+  let sum=0; for(let i=0;i<N;i++)sum+=out[i];
+  const mean=sum/N;
+  let vs=0; for(let i=0;i<N;i++){const d=out[i]-mean; vs+=d*d;} const sd=Math.sqrt(vs/N);
+  const q=p=>{ const idx=(N-1)*p, lo=Math.floor(idx), hi=Math.ceil(idx); return sorted[lo]+(sorted[hi]-sorted[lo])*(idx-lo); };
+  const min=sorted[0], max=sorted[N-1], p10=q(.1), p50=q(.5), p90=q(.9);
+
+  // target probability
+  const tgt=parseFloat(state.target), ge=state.dir!=='le';
+  let prob=null, hit=0;
+  if(isFinite(tgt)){ for(let i=0;i<N;i++){ if(ge? out[i]>=tgt : out[i]<=tgt) hit++; } prob=hit/N; }
+
+  // stats grid
+  const S=[['均值',fmt(mean)],['中位数 P50',fmt(p50)],['标准差',fmt(sd)],
+           ['P10',fmt(p10)],['P90',fmt(p90)],['最小 / 最大',fmt(min)+' / '+fmt(max)]];
+  document.getElementById('stats').innerHTML=S.map(s=>'<div class="stat"><div class="v">'+s[1]+'</div><div class="l">'+s[0]+'</div></div>').join('');
+
+  // big prob
+  const pe=document.getElementById('probpct'), ce=document.getElementById('probcap'), me=document.getElementById('probmeta');
+  if(prob==null){ pe.textContent='—'; pe.className='pct'; ce.textContent='填写目标值后计算'; me.textContent=''; }
+  else{
+    const pc=(prob*100).toFixed(1)+'%';
+    pe.textContent=pc;
+    pe.className='pct'+(prob>=0.7?'':(prob>=0.4?' mid':' low'));
+    ce.textContent='P(输出 '+(ge?'≥':'≤')+' '+fmt(tgt)+')';
+    me.textContent=N.toLocaleString()+' 次模拟中 '+hit.toLocaleString()+' 次达标';
+  }
+
+  drawHist(sorted,min,max,isFinite(tgt)?tgt:null,ge);
+  drawTornado(res);
+  save();
+}
+
+function drawHist(sorted,min,max,tgt,ge){
+  const N=sorted.length, BINS=30;
+  const W=720,H=240, padL=8,padR=8,padT=10,padB=26;
+  if(!(max>min)){ document.getElementById('hist').innerHTML='<div class="hint" style="padding:8px">输出无波动(所有结果相同),无法画分布。</div>'; return; }
+  const counts=new Array(BINS).fill(0), bw=(max-min)/BINS;
+  for(let i=0;i<N;i++){ let b=Math.floor((sorted[i]-min)/bw); if(b>=BINS)b=BINS-1; if(b<0)b=0; counts[b]++; }
+  const cmax=Math.max(...counts);
+  const plotW=W-padL-padR, plotH=H-padT-padB, gap=1.5;
+  const bwid=plotW/BINS;
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:240px">';
+  for(let b=0;b<BINS;b++){
+    const x=padL+b*bwid, hgt=cmax?counts[b]/cmax*plotH:0, y=padT+plotH-hgt;
+    const center=min+(b+0.5)*bw;
+    let fill='var(--accent)';
+    if(tgt!=null) fill=(ge? center>=tgt : center<=tgt)?'var(--good)':'var(--barlo)';
+    svg+='<rect x="'+(x+gap/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bwid-gap).toFixed(1)+'" height="'+hgt.toFixed(1)+'" fill="'+fill+'" rx="1"/>';
+  }
+  // axis baseline
+  svg+='<line x1="'+padL+'" y1="'+(padT+plotH)+'" x2="'+(W-padR)+'" y2="'+(padT+plotH)+'" stroke="var(--line)" stroke-width="1"/>';
+  // target vertical line
+  if(tgt!=null && tgt>=min && tgt<=max){
+    const tx=padL+(tgt-min)/(max-min)*plotW;
+    svg+='<line x1="'+tx.toFixed(1)+'" y1="'+padT+'" x2="'+tx.toFixed(1)+'" y2="'+(padT+plotH)+'" stroke="var(--bad)" stroke-width="2" stroke-dasharray="4 3"/>';
+    const anchor=tx>W*0.5?'end':'start', dx=tx>W*0.5?-4:4;
+    svg+='<text x="'+(tx+dx).toFixed(1)+'" y="'+(padT+12)+'" fill="var(--bad)" font-size="11" text-anchor="'+anchor+'">目标 '+fmt(tgt)+'</text>';
+  }
+  // x labels: min, p50-ish (mid), max
+  const lab=(xfrac,val,anchor)=>'<text x="'+(padL+xfrac*plotW).toFixed(1)+'" y="'+(H-8)+'" fill="var(--muted)" font-size="11" text-anchor="'+anchor+'">'+fmt(val)+'</text>';
+  svg+=lab(0,min,'start')+lab(0.5,(min+max)/2,'middle')+lab(1,max,'end');
+  svg+='</svg>';
+  document.getElementById('hist').innerHTML=svg;
+}
+
+function drawTornado(res){
+  const vars=state.vars, samples=res.samples, out=res.out, N=out.length;
+  let mo=0; for(let i=0;i<N;i++)mo+=out[i]; mo/=N;
+  const rows=[];
+  vars.forEach((v,j)=>{
+    if(v.dist==='fixed'){ return; }
+    const x=samples[j]; let mx=0; for(let i=0;i<N;i++)mx+=x[i]; mx/=N;
+    let sxy=0,sxx=0,syy=0;
+    for(let i=0;i<N;i++){ const dx=x[i]-mx, dy=out[i]-mo; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+    const denom=Math.sqrt(sxx*syy);
+    const r=denom>0? sxy/denom : 0;
+    rows.push({name:v.name, r});
+  });
+  rows.sort((a,b)=>Math.abs(b.r)-Math.abs(a.r));
+  if(!rows.length){ document.getElementById('tornado').innerHTML='<div class="hint">没有可变变量(都是固定值),无敏感性可分析。</div>'; return; }
+  let h='';
+  rows.forEach(o=>{
+    const a=Math.abs(o.r), w=(a*50).toFixed(1);
+    const style=o.r>=0? 'left:50%;width:'+w+'%;background:var(--accent)'
+                      : 'left:'+(50-a*50).toFixed(1)+'%;width:'+w+'%;background:var(--bad)';
+    h+='<div class="tor-row"><div class="tor-name" title="'+esc(o.name)+'">'+esc(o.name)+'</div>'+
+       '<div class="tor-track"><div class="tor-mid"></div><div class="tor-bar" style="'+style+'"></div></div>'+
+       '<div class="tor-val">'+(o.r>=0?'+':'')+o.r.toFixed(2)+'</div></div>';
+  });
+  document.getElementById('tornado').innerHTML=h;
+}
+
+/* ---------- mutations ---------- */
+function setName(id,v){ const o=state.vars.find(x=>x.id===id); if(o){o.name=v; save(); recompute();} }
+function setUnit(id,v){ const o=state.vars.find(x=>x.id===id); if(o){o.unit=v; save();} }   // display only
+function setP(id,k,v){ const o=state.vars.find(x=>x.id===id); if(o){o.p[k]=v; save(); recompute();} }
+function setDist(id,v){ const o=state.vars.find(x=>x.id===id); if(o){ o.dist=v; o.p=o.p||{}; build(); } }
+function setFormula(v){ state.formula=v; save(); recompute(); }
+function setTarget(v){ state.target=v; save(); recompute(); }
+function setDir(v){ state.dir=v; save(); recompute(); }
+
+function addVar(){ state.vars.push({id:nid(),name:'新变量'+state.vars.length,dist:'tri',p:{min:0,mode:1,max:2},unit:''}); build(); }
+function delVar(id){ state.vars=state.vars.filter(x=>x.id!==id); build(); }
+function resetSample(){ if(!confirm('用示例数据覆盖当前内容?'))return; state=sample(); build(); }
+function clearAll(){ if(!confirm('清空所有变量和公式?'))return; state={title:'',vars:[],formula:'',target:'',dir:'ge'}; build(); }
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MonteCarlo-'+(state.title||'export')+'.json'; a.click();
+}
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓'; }
+
+load(); build();
+</script>
+</body>
+</html>

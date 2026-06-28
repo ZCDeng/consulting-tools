@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FMEA / RPN 风险评估 · 咨询定量模板</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/cores/fmea.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6;
+  --good:#2f8f5b; --warn:#c98a1e; --bad:#c0532f;
+  --high:#c0532f; --mid:#c98a1e; --low:#2f8f5b;
+  --high-bg:#f6ddd2; --mid-bg:#f7eccf; --low-bg:#d9eede;
+  --topbar:#ffffff; --chip:#f0ece2; --hot:#fbeecb;
+  --rowhover:#faf8f2;
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e;
+  --good:#46b87a; --warn:#e0a93f; --bad:#e07a52;
+  --high:#e07a52; --mid:#e0a93f; --low:#46b87a;
+  --high-bg:#3a2117; --mid-bg:#3a2f16; --low-bg:#16311e;
+  --topbar:#161c25; --chip:#232c39; --hot:#3a3320;
+  --rowhover:#1f2733;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 18px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:16px;margin:0;font-weight:650}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{opacity:.9;color:#fff}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.wrap{padding:16px 18px 90px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:600}
+.dot{display:inline-block;min-width:22px;height:20px;border-radius:5px;text-align:center;line-height:20px;
+  font-weight:700;margin-right:3px;font-size:11px;padding:0 5px}
+.dhigh{background:var(--high-bg);color:var(--high)} .dmid{background:var(--mid-bg);color:var(--mid)} .dlow{background:var(--low-bg);color:var(--low)}
+
+.summary{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;margin:0 0 14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 14px;min-width:96px}
+.stat .k{font-size:11px;color:var(--muted)}
+.stat .v{font-size:18px;font-weight:750;margin-top:1px}
+.stat.s-high .v{color:var(--high)} .stat.s-mid .v{color:var(--mid)} .stat.s-low .v{color:var(--low)}
+.stat.s-eff{flex:1;min-width:230px}
+.stat.s-eff .v{font-size:15px}
+.stat .drop{color:var(--good);font-weight:700;font-size:13px;margin-left:6px}
+
+.tablescroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.fm{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+table.fm th,table.fm td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;text-align:center;white-space:nowrap;vertical-align:middle}
+table.fm tbody tr:hover td{background:var(--rowhover)}
+table.fm thead th{background:var(--chip);font-weight:600;vertical-align:bottom;position:sticky;top:0;z-index:5}
+.funcname{text-align:left!important;min-width:180px;max-width:240px;white-space:normal!important;
+  position:sticky;left:0;background:var(--panel);z-index:4}
+thead .funcname{z-index:6;background:var(--chip)}
+table.fm tbody tr:hover .funcname{background:var(--rowhover)}
+.grp-sod{background:var(--accent-soft)!important;color:var(--accent)}
+.grp-imp{background:var(--accent-soft)!important;color:var(--accent)}
+.txcol{min-width:148px;max-width:230px}
+.numcol{min-width:48px}
+input.f,textarea.f{font-family:inherit;font-size:12px;border:1px solid transparent;background:transparent;
+  color:var(--ink);width:100%;text-align:center;padding:4px 3px;border-radius:5px;resize:none}
+input.f:hover,textarea.f:hover{border-color:var(--line)}
+input.f:focus,textarea.f:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+textarea.f{text-align:left;white-space:normal;line-height:1.35;min-height:30px;overflow:hidden}
+input.funcf{text-align:left;font-weight:600}
+input.num{max-width:54px;text-align:center}
+.rpncell{font-weight:800;font-size:14px;min-width:70px}
+.rpncell .rank{font-weight:700;font-size:10px;opacity:.8;margin-left:2px}
+.rpn-high{background:var(--high-bg);color:var(--high)}
+.rpn-mid{background:var(--mid-bg);color:var(--mid)}
+.rpn-low{background:var(--low-bg);color:var(--low)}
+.rpn-na{color:var(--muted)}
+.riskrow td{background:var(--hot)}
+.riskrow .funcname{background:var(--hot)}
+.delx{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;border-radius:5px;flex:none}
+.delx:hover{color:#fff;background:var(--bad)}
+.namewrap{display:flex;align-items:flex-start;gap:2px}
+.namewrap .delx{opacity:.35;margin-top:3px}
+.funcname:hover .delx{opacity:1}
+.note{margin:16px 0 0;font-size:12px;color:var(--muted);max-width:920px}
+.note b{color:var(--ink)}
+.hint{font-size:11px;color:var(--muted)}
+.addbar{margin-top:10px;display:flex;gap:8px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button onclick="location.href='index.html?theme='+(document.documentElement.classList.contains('dark')?'dark':'light')" title="返回工具箱首页">← 工具箱</button>
+  <h1>FMEA / RPN 风险评估</h1>
+  <span class="sub">失效模式 · 严重度×发生度×探测度 = 风险优先数</span>
+  <span class="spacer"></span>
+  <button onclick="resetSample()">载入示例</button>
+  <button onclick="clearAll()">清空</button>
+  <button class="primary" onclick="exportJSON()">导出</button>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><b>S 严重度 / O 发生度 / D 探测度</b> 各 1–10</span>
+    <span>·</span>
+    <span><b>RPN = S×O×D</b></span>
+    <span>·</span>
+    <span><b>风险分级</b>:</span>
+    <span><span class="dot dhigh">≥200</span>高</span>
+    <span><span class="dot dmid">100–199</span>中</span>
+    <span><span class="dot dlow">&lt;100</span>低</span>
+    <span>·</span>
+    <span class="hint">RPN 单元格标注 <b>#排名</b>,最高风险行整行高亮;改 S/O/D 即时刷新,不用回车</span>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="tablescroll">
+    <table class="fm" id="fm"></table>
+  </div>
+
+  <div class="addbar">
+    <button class="add" onclick="addRow()">＋ 加一个失效模式</button>
+  </div>
+
+  <div class="note">
+    <b>怎么用</b>:每行登记一个潜在失效模式。先填左侧功能/失效模式/后果/原因/控制等定性字段,再按 1–10 给 <b>S 严重度</b>(后果有多严重)、<b>O 发生度</b>(原因多易发生)、<b>D 探测度</b>(现行控制越难发现分越高)。<b>RPN = S×O×D</b> 自动算出并排序,把"高/中/低"的拍脑袋判断换成可量化、可比较的风险优先数。
+    <span class="hint">填了「建议措施」后,在右侧填改进后 S′/O′/D′(三者都填才算 RPN′),底部汇总会展示缓解前后的总 RPN 对比 —— 这是向客户证明措施值不值得投入的关键证据。</span>
+  </div>
+</div>
+
+<script>
+let uid=1; function nid(){return 'x'+(uid++);}
+let state=null;
+
+function sample(){
+  uid=1;
+  const rows=[
+    {id:nid(), func:'会员主数据完整迁移至新中台', mode:'迁移中字段映射错误 / 数据丢失',
+     effect:'积分等级错乱、投诉激增、品牌受损', s:8,
+     cause:'旧系统字段不规范、缺乏迁移校验规则', o:5,
+     control:'人工抽样核对', d:4,
+     action:'建立字段映射表 + 全量对账脚本,灰度分批切换', s2:8, o2:3, d2:2},
+    {id:nid(), func:'项目按里程碑如期上线', mode:'关键模块开发 / 测试延期',
+     effect:'错过业务旺季,投入产出周期拉长', s:6,
+     cause:'需求频繁变更、资源投入不足', o:6,
+     control:'周例会跟踪进度', d:5,
+     action:'锁定 MVP 范围,关键路径预留缓冲,变更走评审', s2:'', o2:'', d2:''},
+    {id:nid(), func:'一线员工日常使用新系统完成业务', mode:'员工沿用旧流程 / Excel,新系统空转',
+     effect:'数据不进系统,投资无法转化为业务价值', s:7,
+     cause:'培训不足、操作负担增加、缺激励', o:7,
+     control:'下发操作手册', d:6,
+     action:'关键岗位陪跑 + KPI 挂钩,简化高频操作,设种子用户', s2:7, o2:4, d2:3},
+    {id:nid(), func:'与支付 / ERP / 短信等第三方接口稳定对接', mode:'接口超时 / 字段不兼容 / 被限流',
+     effect:'交易中断、对账困难', s:7,
+     cause:'第三方文档滞后、缺联调环境', o:4,
+     control:'上线前联调一次', d:3,
+     action:'提前申请沙箱,加重试与降级,接口契约测试', s2:'', o2:'', d2:''},
+    {id:nid(), func:'会员个人信息合规存储与访问', mode:'越权访问 / 明文存储 / 日志泄露',
+     effect:'违反个保法,监管处罚 + 信任崩塌', s:9,
+     cause:'权限粒度粗、敏感字段未脱敏', o:3,
+     control:'基础防火墙', d:4,
+     action:'字段级加密 + 脱敏,RBAC 最小权限,安全审计与渗透测试', s2:9, o2:2, d2:2},
+    {id:nid(), func:'平台选型匹配业务场景与扩展需求', mode:'选定产品无法支撑核心场景,需二次开发',
+     effect:'返工延期、预算超支', s:6,
+     cause:'选型阶段未充分验证业务场景', o:5,
+     control:'供应商演示', d:5,
+     action:'POC 验证核心场景,预留扩展性评估清单', s2:'', o2:'', d2:''},
+  ];
+  return {title:'数字化转型项目风险', rows};
+}
+function load(){
+  try{ const s=localStorage.getItem('fmea-state');
+    if(s){ state=JSON.parse(s); let mx=0;
+      state.rows.forEach(o=>{const n=parseInt((o.id||'x0').slice(1));if(n>mx)mx=n;}); uid=mx+1; return; }
+  }catch(e){}
+  state=sample();
+}
+function save(){ try{localStorage.setItem('fmea-state',JSON.stringify(state));}catch(e){} }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function n(v){ const x=parseFloat(v); return (isFinite(x)&&x>0)?x:null; }
+function rpnOf(r){ const a=n(r.s),b=n(r.o),c=n(r.d); return (a&&b&&c)?a*b*c:null; }
+function rpn2Of(r){ const a=n(r.s2),b=n(r.o2),c=n(r.d2); return (a&&b&&c)?a*b*c:null; }
+function riskClass(v){ if(v==null)return 'rpn-na'; if(v>=200)return 'rpn-high'; if(v>=100)return 'rpn-mid'; return 'rpn-low'; }
+
+/* ---------- full build (only on add / delete / load / theme) ---------- */
+function build(){
+  const rows=state.rows;
+  let h='<thead><tr>';
+  h+='<th class="funcname">功能 / 要求</th>';
+  h+='<th class="txcol">潜在失效模式</th>';
+  h+='<th class="txcol">失效后果</th>';
+  h+='<th class="grp-sod numcol">S</th>';
+  h+='<th class="txcol">潜在原因</th>';
+  h+='<th class="grp-sod numcol">O</th>';
+  h+='<th class="txcol">现行控制</th>';
+  h+='<th class="grp-sod numcol">D</th>';
+  h+='<th class="numcol">RPN</th>';
+  h+='<th class="txcol">建议措施</th>';
+  h+='<th class="grp-imp numcol">S′</th>';
+  h+='<th class="grp-imp numcol">O′</th>';
+  h+='<th class="grp-imp numcol">D′</th>';
+  h+='<th class="numcol">RPN′</th>';
+  h+='</tr></thead><tbody>';
+  rows.forEach(r=>{
+    h+='<tr id="row-'+r.id+'">';
+    h+='<td class="funcname"><div class="namewrap"><button class="delx" title="删除此行" onclick="delRow(\''+r.id+'\')">✕</button><input class="f funcf" value="'+esc(r.func)+'" oninput="setTxt(\''+r.id+'\',\'func\',this.value)"></div></td>';
+    h+=ta(r.id,'mode',r.mode);
+    h+=ta(r.id,'effect',r.effect);
+    h+=num(r.id,'s',r.s);
+    h+=ta(r.id,'cause',r.cause);
+    h+=num(r.id,'o',r.o);
+    h+=ta(r.id,'control',r.control);
+    h+=num(r.id,'d',r.d);
+    h+='<td id="rpn-'+r.id+'" class="rpncell">—</td>';
+    h+=ta(r.id,'action',r.action);
+    h+=num(r.id,'s2',r.s2);
+    h+=num(r.id,'o2',r.o2);
+    h+=num(r.id,'d2',r.d2);
+    h+='<td id="rpn2-'+r.id+'" class="rpncell">—</td>';
+    h+='</tr>';
+  });
+  h+='</tbody>';
+  document.getElementById('fm').innerHTML=h;
+  document.querySelectorAll('textarea.f').forEach(autoGrow);
+  recompute(); save();
+  document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+}
+function ta(id,f,v){
+  return '<td class="txcol"><textarea class="f" rows="1" oninput="setTxt(\''+id+'\',\''+f+'\',this.value);autoGrow(this)">'+esc(v)+'</textarea></td>';
+}
+function num(id,f,v){
+  return '<td class="numcol"><input class="f num" type="number" min="1" max="10" step="1" value="'+(v===0||v?esc(v):'')+'" oninput="setNum(\''+id+'\',\''+f+'\',this.value)"></td>';
+}
+function autoGrow(el){ el.style.height='auto'; el.style.height=Math.max(30,el.scrollHeight)+'px'; }
+
+/* ---------- light recompute (on every S/O/D change) ---------- */
+function recompute(){
+  const rows=state.rows;
+  const scored=rows.map(r=>({id:r.id,rpn:rpnOf(r),rpn2:rpn2Of(r)}));
+  const valid=scored.filter(s=>s.rpn!=null);
+  const ranked=[...valid].sort((a,b)=>b.rpn-a.rpn);
+  const maxRpn=ranked.length?ranked[0].rpn:0;
+  let cHigh=0,cMid=0,cLow=0,sumBefore=0,sumAfter=0;
+
+  scored.forEach(s=>{
+    const rk=ranked.findIndex(x=>x.id===s.id)+1;
+    const cell=document.getElementById('rpn-'+s.id);
+    if(cell){
+      cell.className='rpncell '+riskClass(s.rpn);
+      cell.innerHTML = s.rpn==null ? '—' : '<b>'+s.rpn+'</b><span class="rank">#'+rk+'</span>';
+    }
+    const cell2=document.getElementById('rpn2-'+s.id);
+    if(cell2){
+      cell2.className='rpncell '+(s.rpn2==null?'rpn-na':riskClass(s.rpn2));
+      cell2.innerHTML = s.rpn2==null ? '—' : '<b>'+s.rpn2+'</b>';
+    }
+    const tr=document.getElementById('row-'+s.id);
+    if(tr) tr.classList.toggle('riskrow', maxRpn>0 && s.rpn===maxRpn);
+
+    if(s.rpn!=null){
+      if(s.rpn>=200)cHigh++; else if(s.rpn>=100)cMid++; else cLow++;
+      sumBefore+=s.rpn;
+      sumAfter+=(s.rpn2!=null?s.rpn2:s.rpn);
+    }
+  });
+
+  const drop = sumBefore>0 ? Math.round((sumBefore-sumAfter)/sumBefore*100) : 0;
+  document.getElementById('summary').innerHTML =
+    stat('风险项',rows.length,'')+
+    stat('高风险',cHigh,'s-high')+
+    stat('中风险',cMid,'s-mid')+
+    stat('低风险',cLow,'s-low')+
+    '<div class="stat s-eff"><div class="k">缓解效果(改进前 → 改进后总 RPN)</div>'+
+      '<div class="v">'+sumBefore+' → '+sumAfter+
+      (sumBefore>sumAfter?'<span class="drop">↓ '+drop+'%</span>':'')+'</div></div>';
+  save();
+}
+function stat(k,v,cls){ return '<div class="stat '+cls+'"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>'; }
+
+/* ---------- mutations ---------- */
+function setTxt(id,f,v){ const r=state.rows.find(x=>x.id===id); if(r){r[f]=v; save();} }   // no recompute
+function setNum(id,f,v){ const r=state.rows.find(x=>x.id===id); if(r){r[f]=v; recompute();} } // light
+function addRow(){ state.rows.push({id:nid(),func:'新功能 / 要求',mode:'',effect:'',s:'',cause:'',o:'',control:'',d:'',action:'',s2:'',o2:'',d2:''}); build(); }
+function delRow(id){ state.rows=state.rows.filter(x=>x.id!==id); build(); }
+function resetSample(){ if(!confirm('用示例数据覆盖当前内容?'))return; state=sample(); build(); }
+function clearAll(){ if(!confirm('清空所有失效模式?'))return; state={title:'',rows:[]}; build(); }
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='FMEA-'+(state.title||'export')+'.json'; a.click();
+}
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓'; }
+
+load(); build();
+</script>
+</body>
+</html>

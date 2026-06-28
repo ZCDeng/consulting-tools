@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kano 模型分析器 · 咨询定量模板</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/cores/kano.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6;
+  --good:#2f8f5b; --warn:#c98a1e; --bad:#c0532f;
+  --topbar:#ffffff; --chip:#f0ece2; --hot:#fbeecb;
+  --kanoM:#7a6cc4; --kanoO:#2f8f5b; --kanoA:#c98a1e; --kanoI:#8a93a3;
+  --grid:#e3ddd0;
+  --rowhover:#faf8f2;
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e;
+  --good:#46b87a; --warn:#e0a93f; --bad:#e07a52;
+  --topbar:#161c25; --chip:#232c39; --hot:#3a3320;
+  --kanoM:#9b8ee0; --kanoO:#46b87a; --kanoA:#e0a93f; --kanoI:#727c8c;
+  --grid:#26303d;
+  --rowhover:#1f2733;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 18px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:16px;margin:0;font-weight:650}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{opacity:.9;color:#fff}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.wrap{padding:16px 18px 90px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:600}
+.cat{display:inline-block;padding:2px 8px;border-radius:5px;color:#fff;font-weight:700;font-size:11px;white-space:nowrap}
+.catM{background:var(--kanoM)} .catO{background:var(--kanoO)} .catA{background:var(--kanoA)}
+.catI{background:var(--kanoI)} .catNA{background:var(--line);color:var(--muted)}
+.tablescroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.kano{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+table.kano th,table.kano td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;text-align:center;white-space:nowrap}
+table.kano tbody tr:hover td{background:var(--rowhover)}
+table.kano thead th{background:var(--chip);font-weight:600;vertical-align:bottom;position:sticky;top:0;z-index:5}
+.itemname{text-align:left!important;min-width:170px;max-width:260px;white-space:normal!important;
+  position:sticky;left:0;background:var(--panel);z-index:4}
+thead .itemname{z-index:6;background:var(--chip)}
+table.kano tbody tr:hover .itemname{background:var(--rowhover)}
+.colh{min-width:54px}
+.colh small{display:block;font-weight:400;color:var(--muted);font-size:10px}
+.hA{color:var(--kanoA)} .hO{color:var(--kanoO)} .hM{color:var(--kanoM)} .hI{color:var(--kanoI)}
+.grp{background:var(--accent-soft)!important;color:var(--accent)}
+input.f{font-family:inherit;font-size:12px;border:1px solid transparent;background:transparent;
+  color:var(--ink);width:100%;text-align:center;padding:4px 3px;border-radius:5px}
+input.f:hover{border-color:var(--line)}
+input.f:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+input.itemf{text-align:left;font-weight:500}
+input.num{max-width:50px}
+select.f{font-family:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);
+  color:var(--ink);padding:5px 7px;border-radius:6px;cursor:pointer}
+select.f:focus{border-color:var(--accent);outline:none}
+.numval{font-weight:700}
+.delx{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;
+  padding:2px 5px;border-radius:5px;flex:none}
+.delx:hover{color:#fff;background:var(--bad)}
+.namewrap{display:flex;align-items:center;gap:2px}
+.namewrap .delx{opacity:.35}
+.itemname:hover .delx{opacity:1}
+.note{margin:16px 0 0;font-size:12px;color:var(--muted);max-width:900px}
+.note b{color:var(--ink)}
+.addbar{margin-top:10px;display:flex;gap:8px}
+.layout{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;align-items:flex-start}
+.chartcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;flex:1 1 560px;min-width:340px}
+.chartcard h3{margin:0 0 4px;font-size:14px}
+.chartcard .csub{font-size:11px;color:var(--muted);margin-bottom:6px}
+.sidecard{flex:1 1 300px;min-width:280px;display:flex;flex-direction:column;gap:16px}
+.advice{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.advice h3{margin:0 0 8px;font-size:14px}
+.advice .row{margin:7px 0;font-size:12px;line-height:1.6}
+.advice .lab{display:inline-block;min-width:74px}
+.advice .names{color:var(--ink);font-weight:500}
+.advice .empty{color:var(--muted)}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif}
+.pt{cursor:pointer;transition:.1s}
+.panel2{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+details summary{cursor:pointer;font-weight:600;padding:4px 0}
+.clsgrid{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:10px}
+.clsgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.clsout{margin-top:12px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.clsout .big{font-size:13px}
+.clsmean{font-size:12px;color:var(--muted)}
+.hint{font-size:11px;color:var(--muted)}
+.seltag{font-size:12px;color:var(--accent);margin-left:8px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button onclick="location.href='index.html?theme='+(document.documentElement.classList.contains('dark')?'dark':'light')" title="返回工具箱首页">← 工具箱</button>
+  <h1>Kano 模型分析器</h1>
+  <span class="sub">客户需求三分类 · Better-Worse 系数</span>
+  <span class="spacer"></span>
+  <button onclick="resetSample()">载入示例</button>
+  <button onclick="clearAll()">清空</button>
+  <button class="primary" onclick="exportJSON()">导出</button>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><b>主分类</b></span>
+    <span><span class="cat catM">M 基本</span> 必须做</span>
+    <span><span class="cat catO">O 期望</span> 越好越满意</span>
+    <span><span class="cat catA">A 魅力</span> 惊喜点</span>
+    <span><span class="cat catI">I 无差异</span> 别投入</span>
+    <span style="margin-left:6px">·</span>
+    <span class="hint">填各 Kano 类别的<b>调研人数</b>(A/O/M/I/R/Q),系数与主分类自动算。R/Q 不计入分母。</span>
+  </div>
+
+  <div class="tablescroll">
+    <table class="kano" id="kano"></table>
+  </div>
+
+  <div class="addbar">
+    <button class="add" onclick="addItem()">＋ 加一行(功能/需求)</button>
+  </div>
+
+  <div class="note">
+    <b>怎么用</b>:每行一个功能/需求,把调研 tally(各类别被勾选人数)填进 A/O/M/I/R/Q 六列。系统对每行算 <b>N = A+O+M+I</b>、
+    <b>主分类</b>(A/O/M/I 中人数最大者,并列按 M&gt;O&gt;A&gt;I)、<b>Better = (A+O)/N</b>、<b>Worse = −(M+O)/N</b>,并画 Better-Worse 四象限定位每个需求。
+    <span class="hint">改任何计数即时刷新,不用回车。下方散点用中位线分四象限——四类需求由此一眼分开。</span>
+  </div>
+
+  <div class="layout">
+    <div class="chartcard">
+      <h3>Better-Worse 四象限 <span id="seltag" class="seltag"></span></h3>
+      <div class="csub">横轴 Better(越右越能加分) · 纵轴 |Worse|(越上越扣分) · 虚线为各自中位数 · 点击点看数值</div>
+      <div id="chart"></div>
+    </div>
+    <div class="sidecard">
+      <div class="advice">
+        <h3>选型提示</h3>
+        <div id="advice"></div>
+        <div class="hint" style="margin-top:10px">原则:基本型必须满足 → 期望型按投入产出排序 → 魅力型选 1–2 个做差异化 → 无差异别浪费资源。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel2">
+    <details>
+      <summary>单份问卷分类器 — 可选</summary>
+      <div class="hint" style="margin:6px 0">对同一功能问两道题:「<b>有</b>它你觉得?」(正向) 和「<b>没有</b>它你觉得?」(反向)。选完查 Kano 评价表,得出该份问卷把此需求归为哪一类,再计到上表对应列。</div>
+      <div class="clsgrid">
+        <label>正向问题答案(功能存在时)
+          <select class="f" id="clsPos" onchange="classify()"></select>
+        </label>
+        <label>反向问题答案(功能缺失时)
+          <select class="f" id="clsNeg" onchange="classify()"></select>
+        </label>
+      </div>
+      <div class="clsout" id="clsout"></div>
+    </details>
+  </div>
+</div>
+
+<script>
+const CATNAME={M:'M 基本',O:'O 期望',A:'A 魅力',I:'I 无差异',R:'R 反向',Q:'Q 可疑'};
+const CATCLS={M:'catM',O:'catO',A:'catA',I:'catI',R:'catNA',Q:'catNA'};
+const CATCOLORVAR={M:'--kanoM',O:'--kanoO',A:'--kanoA',I:'--kanoI'};
+const PRIO=['M','O','A','I'];               // 并列优先级
+const QUADMEAN={
+  O:'越好越满意、没有越不满意',
+  M:'必须做,做了不加分、不做扣分',
+  A:'惊喜点,做了大加分、不做也不扣分',
+  I:'有没有都无所谓,别浪费资源'
+};
+let uid=1; function nid(){return 'x'+(uid++);}
+let state=null;
+
+function sample(){
+  uid=1;
+  const items=[
+    {id:nid(),name:'系统稳定不宕机', A:3,  O:8,  M:22, I:4,  R:1, Q:0},
+    {id:nid(),name:'会员一键复购',   A:8,  O:20, M:6,  I:3,  R:0, Q:1},
+    {id:nid(),name:'智能选品推荐',   A:22, O:6,  M:2,  I:8,  R:1, Q:0},
+    {id:nid(),name:'数据实时看板',   A:15, O:16, M:3,  I:4,  R:0, Q:0},
+    {id:nid(),name:'多端统一登录',   A:4,  O:9,  M:20, I:5,  R:1, Q:0},
+    {id:nid(),name:'AI 营销文案生成',A:16, O:4,  M:2,  I:14, R:2, Q:1},
+  ];
+  return {title:'数字化转型功能调研', items, sel:null};
+}
+function load(){
+  try{ const s=localStorage.getItem('kano-state');
+    if(s){ state=JSON.parse(s); let mx=0;
+      state.items.forEach(o=>{const n=parseInt((o.id||'x0').slice(1));if(n>mx)mx=n;}); uid=mx+1;
+      if(!('sel' in state)) state.sel=null; return; }
+  }catch(e){}
+  state=sample();
+}
+function save(){ try{localStorage.setItem('kano-state',JSON.stringify(state));}catch(e){} }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function nv(x){ const n=parseInt(x); return isNaN(n)||n<0?0:n; }
+
+/* 每行计算 */
+function calc(it){
+  const A=nv(it.A),O=nv(it.O),M=nv(it.M),I=nv(it.I);
+  const N=A+O+M+I;
+  let cat='', better=0, worse=0;
+  if(N>0){
+    better=(A+O)/N;
+    worse=-(M+O)/N;
+    const counts={M,O,A,I};
+    let best=-1;
+    PRIO.forEach(k=>{ if(counts[k]>best){ best=counts[k]; cat=k; } });
+  }
+  return {A,O,M,I,N,cat,better,worse};
+}
+function median(arr){
+  if(!arr.length) return 0;
+  const s=[...arr].sort((a,b)=>a-b), m=Math.floor(s.length/2);
+  return s.length%2? s[m] : (s[m-1]+s[m])/2;
+}
+
+/* ---------- 整表重建(仅增删/载入/主题) ---------- */
+function build(){
+  const items=state.items;
+  let h='<thead><tr>';
+  h+='<th class="itemname">功能 / 需求</th>';
+  h+='<th class="colh"><span class="hA">A</span><small>魅力</small></th>';
+  h+='<th class="colh"><span class="hO">O</span><small>期望</small></th>';
+  h+='<th class="colh"><span class="hM">M</span><small>基本</small></th>';
+  h+='<th class="colh"><span class="hI">I</span><small>无差异</small></th>';
+  h+='<th class="colh">R<small>反向</small></th>';
+  h+='<th class="colh">Q<small>可疑</small></th>';
+  h+='<th class="grp">N</th><th class="grp">主分类</th><th class="grp">Better</th><th class="grp">|Worse|</th>';
+  h+='</tr></thead><tbody>';
+  items.forEach(it=>{
+    h+='<tr>';
+    h+='<td class="itemname"><div class="namewrap"><button class="delx" title="删除此行" onclick="delItem(\''+it.id+'\')">✕</button>'+
+       '<input class="f itemf" value="'+esc(it.name)+'" oninput="setName(\''+it.id+'\',this.value)"></div></td>';
+    ['A','O','M','I','R','Q'].forEach(k=>{
+      h+='<td><input class="f num" type="number" min="0" step="1" value="'+nv(it[k])+'" oninput="setNum(\''+it.id+'\',\''+k+'\',this.value)"></td>';
+    });
+    h+='<td id="N-'+it.id+'" class="numval">—</td>';
+    h+='<td id="cat-'+it.id+'">—</td>';
+    h+='<td id="bt-'+it.id+'" class="numval">—</td>';
+    h+='<td id="ws-'+it.id+'" class="numval">—</td>';
+    h+='</tr>';
+  });
+  h+='</tbody>';
+  document.getElementById('kano').innerHTML=h;
+  recompute(); save();
+  document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+}
+
+/* ---------- 轻量刷新(改任何计数) ---------- */
+function recompute(){
+  const rows=state.items.map(it=>({it, c:calc(it)}));
+  rows.forEach(({it,c})=>{
+    const eN=document.getElementById('N-'+it.id); if(eN)eN.textContent=c.N;
+    const eC=document.getElementById('cat-'+it.id);
+    if(eC) eC.innerHTML = c.cat? '<span class="cat '+CATCLS[c.cat]+'">'+CATNAME[c.cat]+'</span>' : '<span class="cat catNA">—</span>';
+    const eB=document.getElementById('bt-'+it.id); if(eB)eB.textContent=c.N?c.better.toFixed(2):'—';
+    const eW=document.getElementById('ws-'+it.id); if(eW)eW.textContent=c.N?Math.abs(c.worse).toFixed(2):'—';
+  });
+  drawChart(rows);
+  drawAdvice(rows);
+  save();
+}
+
+function drawChart(rows){
+  const valid=rows.filter(r=>r.c.N>0);
+  const W=600,H=440, mL=52,mR=92,mT=26,mB=46;
+  const pW=W-mL-mR, pH=H-mT-mB;
+  const x=b=>mL+b*pW;
+  const y=w=>mT+(1-w)*pH;            // w = |worse| 0..1
+  const medB=valid.length?median(valid.map(r=>r.c.better)):0.5;
+  const medW=valid.length?median(valid.map(r=>Math.abs(r.c.worse))):0.5;
+  let s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="max-width:'+W+'px;display:block">';
+  // 背景框
+  s+='<rect x="'+mL+'" y="'+mT+'" width="'+pW+'" height="'+pH+'" fill="none" stroke="var(--line)"/>';
+  // 网格
+  for(let g=0;g<=1.0001;g+=0.25){
+    s+='<line x1="'+x(g)+'" y1="'+mT+'" x2="'+x(g)+'" y2="'+(mT+pH)+'" stroke="var(--grid)"/>';
+    s+='<line x1="'+mL+'" y1="'+y(g)+'" x2="'+(mL+pW)+'" y2="'+y(g)+'" stroke="var(--grid)"/>';
+    s+='<text x="'+x(g)+'" y="'+(mT+pH+15)+'" font-size="10" fill="var(--muted)" text-anchor="middle">'+g.toFixed(2)+'</text>';
+    s+='<text x="'+(mL-7)+'" y="'+(y(g)+3)+'" font-size="10" fill="var(--muted)" text-anchor="end">'+g.toFixed(2)+'</text>';
+  }
+  // 中位线
+  s+='<line x1="'+x(medB)+'" y1="'+mT+'" x2="'+x(medB)+'" y2="'+(mT+pH)+'" stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="1.3"/>';
+  s+='<line x1="'+mL+'" y1="'+y(medW)+'" x2="'+(mL+pW)+'" y2="'+y(medW)+'" stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="1.3"/>';
+  s+='<text x="'+(x(medB)+3)+'" y="'+(mT+10)+'" font-size="9" fill="var(--accent)">中位 '+medB.toFixed(2)+'</text>';
+  s+='<text x="'+(mL+pW-3)+'" y="'+(y(medW)-3)+'" font-size="9" fill="var(--accent)" text-anchor="end">中位 '+medW.toFixed(2)+'</text>';
+  // 象限标签
+  const ql=[
+    {tx:x(medB)+(mL+pW-x(medB))/2, ty:mT+12, t:'期望型 O', c:'--kanoO'},   // 高B 高W
+    {tx:mL+(x(medB)-mL)/2,          ty:mT+12, t:'基本型 M', c:'--kanoM'},   // 低B 高W
+    {tx:x(medB)+(mL+pW-x(medB))/2, ty:mT+pH-7, t:'魅力型 A', c:'--kanoA'},  // 高B 低W
+    {tx:mL+(x(medB)-mL)/2,          ty:mT+pH-7, t:'无差异 I', c:'--kanoI'}   // 低B 低W
+  ];
+  ql.forEach(q=>{ s+='<text x="'+q.tx+'" y="'+q.ty+'" font-size="12" font-weight="700" fill="var('+q.c+')" text-anchor="middle" opacity="0.85">'+q.t+'</text>'; });
+  // 轴标题
+  s+='<text x="'+(mL+pW/2)+'" y="'+(H-6)+'" font-size="11" fill="var(--ink)" text-anchor="middle">Better 满意度系数 →</text>';
+  s+='<text transform="translate(14,'+(mT+pH/2)+') rotate(-90)" font-size="11" fill="var(--ink)" text-anchor="middle">|Worse| 不满意系数 →</text>';
+  // 点
+  valid.forEach(r=>{
+    const cx=x(r.c.better), cy=y(Math.abs(r.c.worse));
+    const col='var('+(CATCOLORVAR[r.c.cat]||'--kanoI')+')';
+    const seld=state.sel===r.it.id;
+    s+='<circle class="pt" cx="'+cx+'" cy="'+cy+'" r="'+(seld?9:6.5)+'" fill="'+col+'" stroke="var(--panel)" stroke-width="'+(seld?2.5:1.5)+'" onclick="selectPt(\''+r.it.id+'\')"><title>'+esc(r.it.name)+' · '+CATNAME[r.c.cat]+'</title></circle>';
+    s+='<text x="'+(cx+10)+'" y="'+(cy+3)+'" font-size="10" fill="var(--ink)" onclick="selectPt(\''+r.it.id+'\')" style="cursor:pointer">'+esc(r.it.name)+'</text>';
+    if(seld){
+      s+='<text x="'+(cx+10)+'" y="'+(cy+15)+'" font-size="9" fill="var(--muted)">B '+r.c.better.toFixed(2)+' · W '+Math.abs(r.c.worse).toFixed(2)+'</text>';
+    }
+  });
+  s+='</svg>';
+  if(!valid.length) s='<div class="hint" style="padding:30px 0;text-align:center">填入计数后这里显示四象限散点。</div>';
+  document.getElementById('chart').innerHTML=s;
+  // 选中标签
+  const st=document.getElementById('seltag');
+  if(state.sel){ const it=state.items.find(x=>x.id===state.sel); st.textContent=it?('▸ '+it.name):''; }
+  else st.textContent='';
+}
+
+function selectPt(id){ state.sel = (state.sel===id?null:id); save(); recompute(); }
+
+function drawAdvice(rows){
+  const groups={M:[],O:[],A:[],I:[]};
+  rows.forEach(r=>{ if(r.c.cat) groups[r.c.cat].push(r); });
+  // 期望型按 (Better+|Worse|) 投入产出排序
+  groups.O.sort((a,b)=>(b.c.better+Math.abs(b.c.worse))-(a.c.better+Math.abs(a.c.worse)));
+  // 魅力型按 Better 排序
+  groups.A.sort((a,b)=>b.c.better-a.c.better);
+  const nm=arr=>arr.map(r=>r.it.name);
+  function line(cat,lab,note,arr){
+    const names=arr.length? '<span class="names">'+arr.map(esc).join('、')+'</span>' : '<span class="empty">(无)</span>';
+    return '<div class="row"><span class="cat '+CATCLS[cat]+' lab">'+lab+'</span> '+names+'<br><span class="hint">'+note+'</span></div>';
+  }
+  let h='';
+  h+=line('M','M 必做',  '保命项,先全部满足,缺一个就扣分。', nm(groups.M));
+  h+=line('O','O 排序',  '按投入产出从高到低做,越好越满意。', nm(groups.O));
+  h+=line('A','A 差异化','选 1–2 个做亮点,做差异化制造惊喜。', nm(groups.A));
+  h+=line('I','I 别投入','有没有都无所谓,先放一边省资源。', nm(groups.I));
+  document.getElementById('advice').innerHTML=h;
+}
+
+/* ---------- mutations ---------- */
+function setName(id,v){ const it=state.items.find(x=>x.id===id); if(it){it.name=v; save(); drawChart(state.items.map(it=>({it,c:calc(it)}))); drawAdvice(state.items.map(it=>({it,c:calc(it)})));} }
+function setNum(id,k,v){ const it=state.items.find(x=>x.id===id); if(it){it[k]=nv(v); recompute();} }
+function addItem(){ state.items.push({id:nid(),name:'新功能',A:0,O:0,M:0,I:0,R:0,Q:0}); build(); }
+function delItem(id){ if(state.sel===id)state.sel=null; state.items=state.items.filter(x=>x.id!==id); build(); }
+function resetSample(){ if(!confirm('用示例数据覆盖当前内容?'))return; state=sample(); build(); }
+function clearAll(){ if(!confirm('清空所有功能项?'))return; state={title:'',items:[],sel:null}; build(); }
+function exportJSON(){
+  const out={title:state.title,items:state.items.map(it=>{const c=calc(it);return{
+    name:it.name,A:c.A,O:c.O,M:c.M,I:c.I,R:nv(it.R),Q:nv(it.Q),
+    N:c.N,category:c.cat,better:+c.better.toFixed(3),worse:+c.worse.toFixed(3)};})};
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Kano-'+(state.title||'export')+'.json'; a.click();
+}
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓';
+  recompute();
+}
+
+/* ---------- 分类器(Kano 评价表) ---------- */
+const CLSOPTS=['喜欢','理应如此','无所谓','勉强接受','不喜欢'];
+// 行=正向答案, 列=反向答案
+const CLSTAB=[
+  ['Q','A','A','A','O'],  // 喜欢
+  ['R','I','I','I','M'],  // 理应如此
+  ['R','I','I','I','M'],  // 无所谓
+  ['R','I','I','I','M'],  // 勉强接受
+  ['R','R','R','R','Q']   // 不喜欢
+];
+function initClassifier(){
+  const sp=document.getElementById('clsPos'), sn=document.getElementById('clsNeg');
+  const opt=(i,t)=>'<option value="'+i+'">'+t+'</option>';
+  sp.innerHTML=CLSOPTS.map((t,i)=>opt(i,t)).join('');
+  sn.innerHTML=CLSOPTS.map((t,i)=>opt(i,t)).join('');
+  sp.value=0; sn.value=4;              // 默认 喜欢 / 不喜欢 → O
+  classify();
+}
+function classify(){
+  const p=parseInt(document.getElementById('clsPos').value);
+  const n=parseInt(document.getElementById('clsNeg').value);
+  const cat=CLSTAB[p][n];
+  const mean=QUADMEAN[cat]|| (cat==='R'?'反向需求:用户其实不想要它,做了反而扣分':'可疑组合:答案自相矛盾,需复核问卷');
+  document.getElementById('clsout').innerHTML=
+    '<span>归类:</span><span class="cat '+CATCLS[cat]+' big">'+CATNAME[cat]+'</span>'+
+    '<span class="clsmean">'+mean+'</span>';
+}
+
+load(); build(); initClassifier();
+</script>
+</body>
+</html>

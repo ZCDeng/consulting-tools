@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QFD 质量屋 · 咨询定量模板</title>
+<script src="shared/data-sanitize.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/cores/qfd.js"></script>
+<script src="shared/project-bar.js"></script>
+<script>
+(function(){
+  try{
+    var u=new URLSearchParams(location.search).get('theme');
+    var t=u||localStorage.getItem('toolkit-theme');
+    if(!t) t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    if(u){try{localStorage.setItem('toolkit-theme',u);}catch(_){}}
+    if(t==='dark') document.documentElement.classList.add('dark');
+  }catch(e){}
+})();
+</script>
+<style>
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W04.ttf") format("truetype");font-weight:1 450;font-display:swap}
+@font-face{font-family:"TsangerJinKai02";src:url("fonts/TsangerJinKai02-W05.ttf") format("truetype");font-weight:451 900;font-display:swap}
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1d2330; --muted:#6b7280; --line:#d9d4c8;
+  --accent:#1f5fa8; --accent-soft:#e8eef6;
+  --r9:#1f5fa8; --r3:#5b8fc9; --r1:#a9c4e2;
+  --good:#2f8f5b; --warn:#c98a1e; --bad:#c0532f;
+  --topbar:#ffffff; --chip:#f0ece2; --hot:#fbeecb;
+  --kanoM:#7a6cc4; --kanoO:#2f8f5b; --kanoA:#c98a1e;
+  --rowhover:#faf8f2;
+}
+html.dark:root{
+  --bg:#11151c; --panel:#1a212c; --ink:#e6e9ef; --muted:#93a0b4; --line:#2c3645;
+  --accent:#5b9be0; --accent-soft:#1e2c3e;
+  --r9:#5b9be0; --r3:#3f6e9e; --r1:#2c4a66;
+  --good:#46b87a; --warn:#e0a93f; --bad:#e07a52;
+  --topbar:#161c25; --chip:#232c39; --hot:#3a3320;
+  --kanoM:#9b8ee0; --kanoO:#46b87a; --kanoA:#e0a93f;
+  --rowhover:#1f2733;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Charter,"TsangerJinKai02","Source Han Serif SC","Noto Serif CJK SC","Songti SC",STSong,Georgia,serif;
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 18px;background:var(--topbar);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:16px;margin:0;font-weight:650}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+button{font-family:inherit;font-size:12px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;transition:.12s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{opacity:.9;color:#fff}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.wrap{padding:16px 18px 90px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:600}
+.dot{display:inline-block;width:20px;height:20px;border-radius:5px;text-align:center;line-height:20px;
+  font-weight:700;color:#fff;margin-right:3px;font-size:12px}
+.d9{background:var(--r9)} .d3{background:var(--r3)} .d1{background:var(--r1);color:var(--ink)}
+.tablescroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.hoq{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+table.hoq th,table.hoq td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 7px;text-align:center;white-space:nowrap}
+table.hoq tbody tr:hover td{background:var(--rowhover)}
+table.hoq thead th{background:var(--chip);font-weight:600;vertical-align:bottom;position:sticky;top:0;z-index:5}
+.reqname{text-align:left!important;min-width:170px;max-width:260px;white-space:normal!important;
+  position:sticky;left:0;background:var(--panel);z-index:4}
+thead .reqname{z-index:6;background:var(--chip)}
+table.hoq tbody tr:hover .reqname{background:var(--rowhover)}
+.grp{background:var(--accent-soft)!important;color:var(--accent)}
+.colh{min-width:96px}
+.colh .cn{display:flex;align-items:center;gap:4px}
+.cell{cursor:pointer;font-weight:700;font-size:16px;user-select:none;min-width:40px;height:30px;transition:.1s}
+.cell:hover{outline:2px solid var(--accent);outline-offset:-2px}
+.c9{background:var(--r9);color:#fff} .c3{background:var(--r3);color:#fff} .c1{background:var(--r1)}
+input.f,select.f{font-family:inherit;font-size:12px;border:1px solid transparent;background:transparent;
+  color:var(--ink);width:100%;text-align:center;padding:4px 3px;border-radius:5px}
+input.f:hover,select.f:hover{border-color:var(--line)}
+input.f:focus,select.f:focus{border-color:var(--accent);outline:none;background:var(--bg)}
+input.reqf{text-align:left;font-weight:500}
+input.num{max-width:62px}
+select.f{cursor:pointer}
+.kanoM{color:var(--kanoM);font-weight:700} .kanoO{color:var(--kanoO);font-weight:700} .kanoA{color:var(--kanoA);font-weight:700}
+.scorerow td{font-weight:700;background:var(--chip)}
+.scorerow .reqname{background:var(--chip)}
+.barwrap{height:7px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:4px}
+.bar{height:100%;background:var(--accent);border-radius:4px;transition:width .25s}
+.rank1{color:var(--good);font-weight:800}.rank2{color:var(--accent);font-weight:700}
+.delx{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;
+  padding:2px 5px;border-radius:5px;flex:none}
+.delx:hover{color:#fff;background:var(--bad)}
+.namewrap{display:flex;align-items:center;gap:2px}
+.namewrap .delx{opacity:.35}
+.reqname:hover .delx,.colh:hover .delx{opacity:1}
+.note{margin:16px 0 0;font-size:12px;color:var(--muted);max-width:900px}
+.note b{color:var(--ink)}
+.panel2{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+details summary{cursor:pointer;font-weight:600;padding:4px 0}
+.rooftbl{border-collapse:collapse;font-size:12px;margin-top:8px}
+.rooftbl td,.rooftbl th{border:1px solid var(--line);padding:4px 6px;text-align:center}
+.hint{font-size:11px;color:var(--muted)}
+.top3{background:var(--hot)!important}
+.addbar{margin-top:10px;display:flex;gap:8px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button onclick="location.href='index.html?theme='+(document.documentElement.classList.contains('dark')?'dark':'light')" title="返回工具箱首页">← 工具箱</button>
+  <h1>QFD 质量屋</h1>
+  <span class="sub">客户诉求 → 方案模块 · 定量传递</span>
+  <span class="spacer"></span>
+  <button onclick="resetSample()">载入示例</button>
+  <button onclick="clearAll()">清空</button>
+  <button class="primary" onclick="exportJSON()">导出</button>
+  <button onclick="toggleTheme()" id="themebtn">🌓</button>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><b>关系强度</b>(点格子循环):</span>
+    <span><span class="dot d9">●</span>9 强</span>
+    <span><span class="dot d3">◐</span>3 中</span>
+    <span><span class="dot d1">○</span>1 弱</span>
+    <span>空 = 无关</span>
+    <span style="margin-left:6px">·</span>
+    <span><b>Kano</b> <span class="kanoM">M基本</span> <span class="kanoO">O期望</span> <span class="kanoA">A魅力</span></span>
+    <span style="margin-left:6px">·</span>
+    <span class="hint">行/列名旁的 <b style="color:var(--bad)">✕</b> 删除,鼠标移上去显示</span>
+  </div>
+
+  <div class="tablescroll">
+    <table class="hoq" id="hoq"></table>
+  </div>
+
+  <div class="addbar">
+    <button class="add" onclick="addReq()">＋ 加一行(客户诉求)</button>
+    <button class="add" onclick="addCol()">＋ 加一列(方案模块)</button>
+  </div>
+
+  <div class="note">
+    <b>怎么用</b>:左侧填客户诉求 + 重要度(1–5);中间点格子设关系强度;右侧规划矩阵填现状/目标(算改善率)和卖点系数,得出<b>绝对权重 = 重要度 × 改善率 × 卖点</b>。底部每列<b>绝对得分 = Σ(绝对权重 × 关系值)</b>,得分最高的模块优先投入。
+    <span class="hint">现状/目标留空 → 改善率按 1 计,即退化为纯重要度加权,可先不填。改任何数值即时刷新得分,不用回车。</span>
+  </div>
+
+  <div class="panel2">
+    <details>
+      <summary>方案模块相关性(屋顶) — 可选</summary>
+      <div class="hint" style="margin:6px 0">++ 强协同 / + 协同 / − 冲突 / −− 强冲突。强冲突的两个模块同时上需要做权衡。</div>
+      <table class="rooftbl" id="roof"></table>
+    </details>
+  </div>
+</div>
+
+<script>
+const KANO = {'':'—','M':'M基本','O':'O期望','A':'A魅力'};
+let uid = 1;
+function nid(){ return 'x'+(uid++); }
+let state = null;
+
+function sample(){
+  uid = 1;
+  const reqs = [
+    {id:nid(), name:'降低运营成本', imp:5, kano:'O', cur:2, tgt:4, sp:1.2},
+    {id:nid(), name:'提升会员复购', imp:5, kano:'O', cur:2, tgt:4, sp:1.5},
+    {id:nid(), name:'数据驱动决策', imp:4, kano:'A', cur:1, tgt:4, sp:1.2},
+    {id:nid(), name:'系统稳定可靠', imp:4, kano:'M', cur:3, tgt:4, sp:1.0},
+    {id:nid(), name:'快速上线见效', imp:3, kano:'A', cur:2, tgt:4, sp:1.0},
+    {id:nid(), name:'员工易上手',   imp:3, kano:'M', cur:2, tgt:4, sp:1.0},
+  ];
+  const cols = [
+    {id:nid(), name:'会员中台'},{id:nid(), name:'BI 数据看板'},{id:nid(), name:'营销自动化'},
+    {id:nid(), name:'业财一体化'},{id:nid(), name:'培训与 SOP'},
+  ];
+  const r=(ri,ci)=>reqs[ri].id+'|'+cols[ci].id, rel={};
+  [[3,3,1,9,1],[9,3,9,1,1],[3,9,3,9,0],[3,1,1,3,1],[1,3,3,1,9],[1,1,1,1,9]]
+    .forEach((row,ri)=>row.forEach((v,ci)=>{ if(v) rel[r(ri,ci)]=v; }));
+  const roof={};
+  roof[cols[0].id+'|'+cols[2].id]=2; roof[cols[1].id+'|'+cols[3].id]=2; roof[cols[0].id+'|'+cols[1].id]=1;
+  return {title:'数字化转型', reqs, cols, rel, roof};
+}
+function load(){
+  try{ const s=localStorage.getItem('qfd-state');
+    if(s){ state=JSON.parse(s); let mx=0;
+      state.reqs.concat(state.cols).forEach(o=>{const n=parseInt((o.id||'x0').slice(1));if(n>mx)mx=n;}); uid=mx+1; return; }
+  }catch(e){}
+  state=sample();
+}
+function save(){ try{ localStorage.setItem('qfd-state', JSON.stringify(state)); }catch(e){} }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function relVal(rid,cid){ return state.rel[rid+'|'+cid]||0; }
+function ir(r){ const c=parseFloat(r.cur),t=parseFloat(r.tgt); if(!c||!t||c<=0)return 1; return t/c; }
+function absWeight(r){ return (parseFloat(r.imp)||0)*ir(r)*(parseFloat(r.sp)||1); }
+
+/* ---------- full build (only on add/delete/load/theme) ---------- */
+function build(){
+  const reqs=state.reqs, cols=state.cols, RC={9:'c9',3:'c3',1:'c1'};
+  let h='<thead><tr>';
+  h+='<th class="reqname">客户诉求 ＼ 方案模块</th>';
+  h+='<th class="grp">重要度</th><th class="grp">Kano</th>';
+  cols.forEach(c=>{
+    h+='<th class="colh grp"><div class="cn"><input class="f" value="'+esc(c.name)+'" oninput="setColName(\''+c.id+'\',this.value)"><button class="delx" title="删除此列" onclick="delCol(\''+c.id+'\')">✕</button></div></th>';
+  });
+  h+='<th class="grp">现状</th><th class="grp">目标</th><th class="grp">改善率</th><th class="grp">卖点</th><th class="grp">绝对权重</th><th class="grp">相对%</th>';
+  h+='</tr></thead><tbody>';
+  reqs.forEach(r=>{
+    h+='<tr>';
+    h+='<td class="reqname"><div class="namewrap"><button class="delx" title="删除此行" onclick="delReq(\''+r.id+'\')">✕</button><input class="f reqf" value="'+esc(r.name)+'" oninput="setName(\''+r.id+'\',this.value)"></div></td>';
+    h+='<td><input class="f num" type="number" min="1" max="5" step="1" value="'+r.imp+'" oninput="setNum(\''+r.id+'\',\'imp\',this.value)"></td>';
+    h+='<td><select class="f kano'+r.kano+'" onchange="setKano(\''+r.id+'\',this.value,this)">'+
+        Object.keys(KANO).map(k=>'<option value="'+k+'" '+(k===r.kano?'selected':'')+'>'+KANO[k]+'</option>').join('')+'</select></td>';
+    cols.forEach(c=>{ const v=relVal(r.id,c.id);
+      h+='<td id="cell-'+r.id+'-'+c.id+'" class="cell '+(RC[v]||'')+'" onclick="cycleRel(\''+r.id+'\',\''+c.id+'\')">'+sym(v)+'</td>'; });
+    h+='<td><input class="f num" type="number" step="any" value="'+(r.cur??'')+'" oninput="setNum(\''+r.id+'\',\'cur\',this.value)"></td>';
+    h+='<td><input class="f num" type="number" step="any" value="'+(r.tgt??'')+'" oninput="setNum(\''+r.id+'\',\'tgt\',this.value)"></td>';
+    h+='<td id="ir-'+r.id+'">'+ir(r).toFixed(2)+'</td>';
+    h+='<td><select class="f" onchange="setNum(\''+r.id+'\',\'sp\',this.value)">'+
+        [['1.0','—'],['1.2','1.2'],['1.5','1.5']].map(o=>'<option value="'+o[0]+'" '+(parseFloat(o[0])===parseFloat(r.sp)?'selected':'')+'>'+o[1]+'</option>').join('')+'</select></td>';
+    h+='<td id="aw-'+r.id+'"><b>'+absWeight(r).toFixed(1)+'</b></td>';
+    h+='<td id="rp-'+r.id+'">—</td>';
+    h+='</tr>';
+  });
+  const ncol=cols.length;
+  h+='<tr class="scorerow"><td class="reqname">绝对得分 = Σ(权重×关系)</td><td></td><td></td>';
+  cols.forEach(c=>{ h+='<td id="cs-'+c.id+'">—</td>'; });
+  h+='<td colspan="6"></td></tr>';
+  h+='<tr class="scorerow"><td class="reqname">相对权重 / 排序</td><td></td><td></td>';
+  cols.forEach(c=>{ h+='<td id="cp-'+c.id+'">—</td>'; });
+  h+='<td colspan="6"></td></tr>';
+  h+='</tbody>';
+  document.getElementById('hoq').innerHTML=h;
+  recompute(); buildRoof(); save();
+  document.getElementById('themebtn').textContent=document.documentElement.classList.contains('dark')?'🌞':'🌓';
+}
+function sym(v){ return {9:'●',3:'◐',1:'○',0:''}[v]; }
+
+/* ---------- light recompute (on every value change) ---------- */
+function recompute(){
+  const reqs=state.reqs, cols=state.cols;
+  const wtot=reqs.reduce((a,b)=>a+absWeight(b),0)||1;
+  reqs.forEach(r=>{
+    const e1=document.getElementById('ir-'+r.id); if(e1)e1.textContent=ir(r).toFixed(2);
+    const e2=document.getElementById('aw-'+r.id); if(e2)e2.innerHTML='<b>'+absWeight(r).toFixed(1)+'</b>';
+    const e3=document.getElementById('rp-'+r.id); if(e3)e3.textContent=(absWeight(r)/wtot*100).toFixed(0)+'%';
+  });
+  const sc=cols.map(c=>{ let s=0; reqs.forEach(r=>s+=absWeight(r)*relVal(r.id,c.id)); return {id:c.id,score:s}; });
+  const tot=sc.reduce((a,b)=>a+b.score,0)||1, max=Math.max(...sc.map(o=>o.score),1);
+  const ranked=[...sc].sort((a,b)=>b.score-a.score);
+  sc.forEach(o=>{
+    const rank=ranked.findIndex(x=>x.id===o.id)+1, pct=o.score/tot*100;
+    const cs=document.getElementById('cs-'+o.id);
+    if(cs){ cs.textContent=Math.round(o.score); cs.className=rank===1?'top3':''; }
+    const cp=document.getElementById('cp-'+o.id);
+    if(cp){ const rc=rank===1?'rank1':(rank===2?'rank2':'');
+      cp.className=rank===1?'top3':'';
+      cp.innerHTML='<span class="'+rc+'">#'+rank+'</span> '+pct.toFixed(0)+'%<div class="barwrap"><div class="bar" style="width:'+(o.score/max*100)+'%"></div></div>'; }
+  });
+  save();
+}
+
+function buildRoof(){
+  const cols=state.cols;
+  let h='<tr><th></th>'; cols.forEach((c,i)=>{ if(i>0)h+='<th>'+esc(c.name)+'</th>'; }); h+='</tr>';
+  cols.forEach((c1,i)=>{ if(i===cols.length-1)return;
+    h+='<tr><th style="text-align:right">'+esc(c1.name)+'</th>';
+    cols.forEach((c2,j)=>{ if(j===0)return;
+      if(j<=i){ h+='<td style="background:transparent;border:none"></td>'; return; }
+      const k=c1.id+'|'+c2.id, v=state.roof[k]||0;
+      h+='<td><select class="f" onchange="setRoof(\''+k+'\',this.value)">'+
+         [['0','·'],['2','++'],['1','+'],['-1','−'],['-2','−−']].map(o=>'<option value="'+o[0]+'" '+(parseInt(o[0])===v?'selected':'')+'>'+o[1]+'</option>').join('')+'</select></td>'; });
+    h+='</tr>'; });
+  document.getElementById('roof').innerHTML=h;
+}
+
+/* ---------- mutations: silent where possible ---------- */
+function setName(id,v){ const r=state.reqs.find(x=>x.id===id); if(r){r.name=v; save();} }       // no recompute
+function setColName(id,v){ const c=state.cols.find(x=>x.id===id); if(c){c.name=v; save(); buildRoof();} }
+function setNum(id,f,v){ const r=state.reqs.find(x=>x.id===id); if(r){r[f]=v; recompute();} }     // light
+function setKano(id,v,el){ const r=state.reqs.find(x=>x.id===id); if(r){r.kano=v; el.className='f kano'+v; save();} }
+function setRoof(k,v){ const n=parseInt(v); if(n)state.roof[k]=n; else delete state.roof[k]; save(); }
+function cycleRel(rid,cid){
+  const k=rid+'|'+cid, cur=state.rel[k]||0, next={0:1,1:3,3:9,9:0}[cur];
+  if(next)state.rel[k]=next; else delete state.rel[k];
+  const cell=document.getElementById('cell-'+rid+'-'+cid);
+  cell.className='cell '+({9:'c9',3:'c3',1:'c1'}[next]||''); cell.textContent=sym(next);
+  recompute();
+}
+function addReq(){ state.reqs.push({id:nid(),name:'新诉求',imp:3,kano:'',cur:'',tgt:'',sp:1.0}); build(); }
+function addCol(){ state.cols.push({id:nid(),name:'新模块'}); build(); }
+function delReq(id){ state.reqs=state.reqs.filter(x=>x.id!==id); Object.keys(state.rel).forEach(k=>{if(k.startsWith(id+'|'))delete state.rel[k];}); build(); }
+function delCol(id){ state.cols=state.cols.filter(x=>x.id!==id); Object.keys(state.rel).forEach(k=>{if(k.endsWith('|'+id))delete state.rel[k];}); Object.keys(state.roof).forEach(k=>{if(k.includes(id))delete state.roof[k];}); build(); }
+function resetSample(){ if(!confirm('用示例数据覆盖当前内容?'))return; state=sample(); build(); }
+function clearAll(){ if(!confirm('清空所有诉求和模块?'))return; state={title:'',reqs:[],cols:[],rel:{},roof:{}}; build(); }
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='QFD-'+(state.title||'export')+'.json'; a.click();
+}
+function toggleTheme(){ const d=document.documentElement.classList.toggle('dark');
+  try{localStorage.setItem('toolkit-theme',d?'dark':'light');}catch(e){}
+  document.getElementById('themebtn').textContent=d?'🌞':'🌓'; }
+
+load(); build();
+</script>
+</body>
+</html>
