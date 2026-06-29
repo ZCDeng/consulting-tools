@@ -14,6 +14,7 @@ const cargoTargetDir = path.join(os.homedir(), ".cache", "consulting-tools-deskt
 const appName = "Consulting Tools";
 const bundleId = "com.zcdeng.consulting-tools";
 const appVersion = "0.1.0";
+const signingIdentity = process.env.TOOLKIT_SIGNING_IDENTITY || "-";
 
 function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(" ")}`);
@@ -50,6 +51,75 @@ function copyDir(src, dest, filter = () => true) {
     dereference: false,
     filter: (source) => filter(path.relative(src, source), source)
   });
+}
+
+function writeEntitlements(file) {
+  fs.writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+  </dict>
+</plist>
+`);
+}
+
+function findTargets(root, predicate, results = []) {
+  if (!fs.existsSync(root)) return results;
+  const stats = fs.lstatSync(root);
+  if (stats.isSymbolicLink()) return results;
+  if (predicate(root, stats)) results.push(root);
+  if (!stats.isDirectory()) return results;
+  for (const entry of fs.readdirSync(root)) {
+    findTargets(path.join(root, entry), predicate, results);
+  }
+  return results;
+}
+
+function isMachO(file) {
+  const fd = fs.openSync(file, "r");
+  try {
+    const buffer = Buffer.alloc(4);
+    if (fs.readSync(fd, buffer, 0, 4, 0) !== 4) return false;
+    const magic = buffer.toString("hex");
+    return [
+      "feedface",
+      "feedfacf",
+      "cefaedfe",
+      "cffaedfe",
+      "cafebabe",
+      "bebafeca",
+      "cafebabf"
+    ].includes(magic);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function isBundleMainExecutable(file) {
+  const parts = file.split(path.sep);
+  for (let index = 0; index < parts.length; index += 1) {
+    if (parts[index].endsWith(".app")
+      && parts[index + 1] === "Contents"
+      && parts[index + 2] === "MacOS"
+      && index + 4 === parts.length) {
+      return true;
+    }
+    if (parts[index].endsWith(".framework")) {
+      const frameworkName = parts[index].replace(/\.framework$/, "");
+      if (path.basename(file) === frameworkName) return true;
+    }
+  }
+  return false;
+}
+
+function needsRuntimeEntitlements(file) {
+  return path.basename(file) === "chrome-headless-shell";
 }
 
 function ensureCleanBuildDir() {
@@ -112,6 +182,17 @@ function installServerDependencies() {
     env: { PLAYWRIGHT_BROWSERS_PATH: browsersPath }
   });
   copyDir(browsersPath, path.join(serverDir, "ms-playwright"));
+  pruneUnusedPlaywrightBrowsers(path.join(serverDir, "ms-playwright"));
+}
+
+function pruneUnusedPlaywrightBrowsers(playwrightDir) {
+  const hasHeadlessShell = fs.readdirSync(playwrightDir).some(entry => entry.startsWith("chromium_headless_shell-"));
+  if (!hasHeadlessShell) return;
+  for (const entry of fs.readdirSync(playwrightDir)) {
+    if (/^chromium-\d+/.test(entry)) {
+      fs.rmSync(path.join(playwrightDir, entry), { recursive: true, force: true });
+    }
+  }
 }
 
 function stageNodeRuntime() {
@@ -274,6 +355,10 @@ function writePakeConfigs() {
   tauriConfig.app.trayIcon.iconPath = "png/icon_512.png";
   tauriConfig.bundle.targets = ["app"];
   tauriConfig.bundle.icon = ["icons/icon.icns"];
+  tauriConfig.bundle.macOS = {
+    ...(tauriConfig.bundle.macOS || {}),
+    signingIdentity
+  };
   tauriConfig.bundle.resources = [
     "resources/consulting-tools",
     "resources/bin/node"
@@ -296,6 +381,7 @@ function writePakeConfigs() {
   </dict>
 </plist>
 `);
+  writeEntitlements(path.join(srcTauri, "entitlements.plist"));
 }
 
 function ensurePakeDependencies() {
@@ -326,6 +412,61 @@ function collectApp() {
   fs.mkdirSync(distMac, { recursive: true });
   fs.cpSync(builtApp, finalApp, { recursive: true });
   console.log(`Built ${finalApp}`);
+  return finalApp;
+}
+
+function signDistributionArtifacts(appPath) {
+  if (signingIdentity === "-") return;
+  const resourcesDir = path.join(appPath, "Contents", "Resources");
+  const bundledNode = path.join(resourcesDir, "resources", "bin", "node");
+  const machOFiles = findTargets(resourcesDir, (target, stats) => {
+    return target !== bundledNode
+      && stats.isFile()
+      && isMachO(target)
+      && !isBundleMainExecutable(target);
+  });
+  for (const target of machOFiles) {
+    const args = [
+      "--force",
+      "--options",
+      "runtime",
+      "--timestamp",
+      ...(needsRuntimeEntitlements(target) ? ["--entitlements", path.join(workspace, "src-tauri", "entitlements.plist")] : []),
+      "--sign",
+      signingIdentity,
+      target
+    ];
+    run("codesign", args);
+  }
+  const nestedBundles = findTargets(resourcesDir, (target, stats) => {
+    const name = path.basename(target);
+    return stats.isDirectory() && (name.endsWith(".app") || name.endsWith(".framework"));
+  }).sort((a, b) => b.length - a.length);
+  for (const target of nestedBundles) {
+    run("codesign", [
+      "--force",
+      "--deep",
+      "--options",
+      "runtime",
+      "--timestamp",
+      "--sign",
+      signingIdentity,
+      target
+    ]);
+  }
+
+  run("codesign", [
+    "--force",
+    "--deep",
+    "--options",
+    "runtime",
+    "--timestamp",
+    "--entitlements",
+    path.join(workspace, "src-tauri", "entitlements.plist"),
+    "--sign",
+    signingIdentity,
+    appPath
+  ]);
 }
 
 if (process.platform !== "darwin") {
@@ -341,4 +482,4 @@ patchRustSources();
 writePakeConfigs();
 ensurePakeDependencies();
 buildApp();
-collectApp();
+signDistributionArtifacts(collectApp());
