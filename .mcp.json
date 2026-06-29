@@ -5,7 +5,10 @@
       "args": [
         "server/mcp/index.js"
       ],
-      "cwd": "/Users/zcdeng/projects/consulting-tools"
+      "cwd": "/Users/zcdeng/projects/consulting-tools",
+      "env": {
+        "TOOLKIT_DATA_DIR": "/Users/zcdeng/Library/Application Support/com.zcdeng.consulting-tools/data"
+      }
     }
   }
 }

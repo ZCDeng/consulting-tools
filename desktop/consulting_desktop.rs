@@ -1,4 +1,5 @@
 use std::{
+    fs::File,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     path::PathBuf,
@@ -41,9 +42,17 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     std::fs::create_dir_all(&app_data_dir).map_err(tauri::Error::Io)?;
 
     let port = reserve_port()?;
+    let token = random_token()?;
     let url = format!("http://127.0.0.1:{port}/index.html");
     let data_dir = app_data_dir.join("data");
     let browser_dir = server_dir.join("ms-playwright");
+
+    // Keep the server's stdout/stderr so startup failures (EADDRINUSE, a
+    // missing module, a DB error) leave a diagnosable trail instead of
+    // vanishing into /dev/null.
+    let log_path = app_data_dir.join("consulting-tools-server.log");
+    let stdout_log = File::create(&log_path).map_err(tauri::Error::Io)?;
+    let stderr_log = stdout_log.try_clone().map_err(tauri::Error::Io)?;
 
     let mut child = Command::new(&node_bin)
         .arg(server_dir.join("app.js"))
@@ -56,10 +65,11 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         .env("TOOLKIT_DATA_DIR", &data_dir)
         .env("TOOLKIT_PORT", port.to_string())
         .env("TOOLKIT_HOST", "127.0.0.1")
+        .env("TOOLKIT_TOKEN", &token)
         .env("PLAYWRIGHT_BROWSERS_PATH", &browser_dir)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::from(stdout_log))
+        .stderr(Stdio::from(stderr_log))
         .spawn()
         .map_err(|error| {
             tauri::Error::Io(std::io::Error::new(
@@ -68,10 +78,17 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             ))
         })?;
 
-    if let Err(error) = wait_for_server(port) {
+    // The reserved port is released before the child rebinds it, so a racing
+    // process could occupy it. Requiring /token to echo back our private
+    // token means a squatter that answers 200 is not trusted: we keep polling
+    // and, on timeout, fail closed rather than loading a foreign origin.
+    if let Err(error) = wait_for_server(port, &token) {
         let _ = child.kill();
         let _ = child.wait();
-        return Err(error);
+        return Err(tauri::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("{error}; see server log at {}", log_path.display()),
+        )));
     }
 
     std::env::set_var("CONSULTING_TOOLS_DESKTOP_URL", url);
@@ -125,23 +142,38 @@ fn reserve_port() -> tauri::Result<u16> {
     Ok(port)
 }
 
-fn wait_for_server(port: u16) -> tauri::Result<()> {
+fn random_token() -> tauri::Result<String> {
+    let mut buf = [0u8; 24];
+    File::open("/dev/urandom")
+        .and_then(|mut file| file.read_exact(&mut buf))
+        .map_err(tauri::Error::Io)?;
+    Ok(buf.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn wait_for_server(port: u16, token: &str) -> tauri::Result<()> {
     let request =
         format!("GET /token HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
     for _ in 0..120 {
-        match TcpStream::connect(("127.0.0.1", port)) {
-            Ok(mut stream) => {
-                let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-                let _ = stream.write_all(request.as_bytes());
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)) {
+            // If setting the read timeout fails, skip this attempt rather than
+            // risk an unbounded blocking read; the loop sleeps and retries.
+            if stream
+                .set_read_timeout(Some(Duration::from_millis(500)))
+                .is_ok()
+                && stream.write_all(request.as_bytes()).is_ok()
+            {
                 let mut response = String::new();
                 if stream.read_to_string(&mut response).is_ok()
                     && response.starts_with("HTTP/1.1 200")
+                    && response.contains(token)
                 {
                     return Ok(());
                 }
             }
-            Err(_) => std::thread::sleep(Duration::from_millis(100)),
         }
+        // Sleep on every iteration, including a successful connect that did not
+        // yet return our token, so a half-ready server cannot cause a tight spin.
+        std::thread::sleep(Duration::from_millis(100));
     }
 
     Err(tauri::Error::Io(std::io::Error::new(
