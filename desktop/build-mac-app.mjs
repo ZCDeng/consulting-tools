@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 
 const projectRoot = path.resolve(new URL("..", import.meta.url).pathname);
-const pakeRoot = process.env.PAKE_ROOT || "/Users/zcdeng/projects/Pake";
+const pakeRoot = process.env.PAKE_ROOT;
 const buildRoot = path.join(projectRoot, "dist", "desktop-build");
 const workspace = path.join(buildRoot, "Pake");
 const stagedToolkit = path.join(workspace, "src-tauri", "resources", "consulting-tools");
@@ -143,6 +143,9 @@ function ensureCleanBuildDir() {
 }
 
 function copyPakeTemplate() {
+  if (!pakeRoot) {
+    throw new Error("Set PAKE_ROOT to a local Pake checkout, e.g. export PAKE_ROOT=/path/to/Pake");
+  }
   if (!fs.existsSync(path.join(pakeRoot, "src-tauri", "Cargo.toml"))) {
     throw new Error(`Pake checkout not found at ${pakeRoot}`);
   }
@@ -438,7 +441,10 @@ function writePakeConfigs() {
 
   const capabilitiesPath = path.join(srcTauri, "capabilities", "default.json");
   const capabilities = readJson(capabilitiesPath);
-  capabilities.remote = { urls: ["http://127.0.0.1:*", "http://localhost:*"] };
+  // The bundled server binds 127.0.0.1 and the webview only ever navigates
+  // there, so the capability is scoped to loopback IP rather than also
+  // granting every http://localhost:* origin.
+  capabilities.remote = { urls: ["http://127.0.0.1:*"] };
   writeJson(capabilitiesPath, capabilities);
 
   fs.writeFileSync(path.join(srcTauri, "Info.plist"), `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
