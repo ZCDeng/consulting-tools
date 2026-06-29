@@ -23,9 +23,10 @@ npm run install-browser
 
 ## macOS App
 
-使用本地 Pake checkout 打包自包含 macOS app:
+使用本地 Pake checkout 打包自包含 macOS app。先把 `PAKE_ROOT` 指向本地 Pake checkout(脚本默认值是作者机器上的路径,其它机器必须显式设置):
 
 ```bash
+export PAKE_ROOT=/path/to/Pake
 node desktop/build-mac-app.mjs
 ```
 
@@ -33,7 +34,7 @@ node desktop/build-mac-app.mjs
 
 ## 安全边界
 
-服务只监听 `127.0.0.1:41789`,校验 `Host` 头,且所有写请求都需要启动时生成的本地 token。在线页面与 API 同源,不启用通配 CORS。
+服务始终绑定回环地址,校验 `Host` 头,所有写请求都需要启动时生成的本地 token,在线页面与 API 同源、不启用通配 CORS。端口随运行模式不同:`npm start` 固定用 `41789`;macOS App 由系统分配临时端口,每次启动都不一样。三道边界(回环绑定 + `Host` 校验 + 写 token)在两种模式下都成立。
 
 ## MCP
 

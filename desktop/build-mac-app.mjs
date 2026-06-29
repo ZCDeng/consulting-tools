@@ -15,6 +15,7 @@ const appName = "Consulting Tools";
 const bundleId = "com.zcdeng.consulting-tools";
 const appVersion = "0.1.0";
 const signingIdentity = process.env.TOOLKIT_SIGNING_IDENTITY || "-";
+const pnpmVersion = "pnpm@10.26.2";
 
 function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(" ")}`);
@@ -34,7 +35,7 @@ function readJson(file) {
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(`${file}\n`.trim(), `${JSON.stringify(value, null, 2)}\n`);
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function replaceOrThrow(source, search, replacement, label) {
@@ -386,13 +387,13 @@ function writePakeConfigs() {
 
 function ensurePakeDependencies() {
   run("corepack", ["enable"], { cwd: workspace });
-  run("corepack", ["prepare", "pnpm@10.26.2", "--activate"], { cwd: workspace });
-  run("corepack", ["pnpm@10.26.2", "install", "--frozen-lockfile"], { cwd: workspace });
+  run("corepack", ["prepare", pnpmVersion, "--activate"], { cwd: workspace });
+  run("corepack", [pnpmVersion, "install", "--frozen-lockfile"], { cwd: workspace });
 }
 
 function buildApp() {
   const configPath = path.join("src-tauri", ".pake", "tauri.conf.json");
-  run("corepack", ["pnpm@10.26.2", "tauri", "build", "-c", configPath, "--features", "cli-build", "--bundles", "app"], {
+  run("corepack", [pnpmVersion, "tauri", "build", "-c", configPath, "--features", "cli-build", "--bundles", "app"], {
     cwd: workspace,
     env: {
       CARGO_TARGET_DIR: cargoTargetDir
