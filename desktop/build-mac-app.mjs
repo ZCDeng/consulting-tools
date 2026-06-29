@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,14 +17,27 @@ const bundleId = "com.zcdeng.consulting-tools";
 const appVersion = "0.1.0";
 const signingIdentity = process.env.TOOLKIT_SIGNING_IDENTITY || "-";
 const pnpmVersion = "pnpm@10.26.2";
+const networkTimeoutMs = 15 * 60 * 1000;
 
 function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(" ")}`);
   const result = spawnSync(command, args, {
     stdio: "inherit",
     cwd: options.cwd || projectRoot,
-    env: { ...process.env, ...(options.env || {}) }
+    env: { ...process.env, ...(options.env || {}) },
+    timeout: options.timeout
   });
+  if (result.error) {
+    const timedOut = result.error.code === "ETIMEDOUT" && options.timeout;
+    throw new Error(
+      timedOut
+        ? `${command} timed out after ${options.timeout} ms`
+        : `${command} failed to run: ${result.error.message}`
+    );
+  }
+  if (result.signal) {
+    throw new Error(`${command} terminated by signal ${result.signal}`);
+  }
   if (result.status !== 0) {
     throw new Error(`${command} exited with status ${result.status}`);
   }
@@ -175,12 +189,13 @@ function stageToolkitSource() {
 
 function installServerDependencies() {
   const serverDir = path.join(stagedToolkit, "server");
-  run("npm", ["ci", "--omit=dev"], { cwd: serverDir });
+  run("npm", ["ci", "--omit=dev"], { cwd: serverDir, timeout: networkTimeoutMs });
   const browsersPath = path.join(os.homedir(), ".cache", "consulting-tools-desktop", "ms-playwright");
   fs.mkdirSync(browsersPath, { recursive: true });
   run("npm", ["run", "install-browser"], {
     cwd: serverDir,
-    env: { PLAYWRIGHT_BROWSERS_PATH: browsersPath }
+    env: { PLAYWRIGHT_BROWSERS_PATH: browsersPath },
+    timeout: networkTimeoutMs
   });
   copyDir(browsersPath, path.join(serverDir, "ms-playwright"));
   pruneUnusedPlaywrightBrowsers(path.join(serverDir, "ms-playwright"));
@@ -196,26 +211,81 @@ function pruneUnusedPlaywrightBrowsers(playwrightDir) {
   }
 }
 
+function curl(url, outFile, maxTimeSecs) {
+  run("curl", [
+    "-fL",
+    "--connect-timeout", "30",
+    "--max-time", String(maxTimeSecs),
+    "-o", outFile,
+    url
+  ], { timeout: (maxTimeSecs + 60) * 1000 });
+}
+
+function sha256File(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function expectedNodeSha(nodeVersion, archiveFileName, cacheDir) {
+  const shaFile = path.join(cacheDir, `SHASUMS256-${nodeVersion}.txt`);
+  const tmpShaFile = `${shaFile}.download`;
+  fs.rmSync(tmpShaFile, { force: true });
+  curl(`https://nodejs.org/dist/${nodeVersion}/SHASUMS256.txt`, tmpShaFile, 120);
+  fs.renameSync(tmpShaFile, shaFile);
+  const line = fs.readFileSync(shaFile, "utf8")
+    .split("\n")
+    .find(entry => entry.trim().endsWith(archiveFileName));
+  if (!line) {
+    throw new Error(`No SHASUMS256 entry for ${archiveFileName}`);
+  }
+  return line.trim().split(/\s+/)[0];
+}
+
+function downloadVerifiedArchive(nodeVersion, archiveFileName, archive, cacheDir) {
+  const tmpArchive = `${archive}.download`;
+  fs.rmSync(tmpArchive, { force: true });
+  curl(`https://nodejs.org/dist/${nodeVersion}/${archiveFileName}`, tmpArchive, 600);
+  const expected = expectedNodeSha(nodeVersion, archiveFileName, cacheDir);
+  const actual = sha256File(tmpArchive);
+  if (actual !== expected) {
+    fs.rmSync(tmpArchive, { force: true });
+    throw new Error(`Node runtime checksum mismatch for ${archiveFileName}: expected ${expected}, got ${actual}`);
+  }
+  // Promote only after the checksum passes, so an interrupted or corrupt
+  // download can never be mistaken for a complete cached archive.
+  fs.renameSync(tmpArchive, archive);
+}
+
+function extractArchiveAtomically(archive, extracted) {
+  const tmpDir = `${extracted}.extracting`;
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
+  try {
+    run("tar", ["-xJf", archive, "-C", tmpDir, "--strip-components", "1"], { timeout: networkTimeoutMs });
+  } catch (error) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    throw error;
+  }
+  fs.rmSync(extracted, { recursive: true, force: true });
+  fs.renameSync(tmpDir, extracted);
+}
+
 function stageNodeRuntime() {
   fs.mkdirSync(stagedBin, { recursive: true });
   const targetNode = path.join(stagedBin, "node");
   const nodeVersion = process.version;
   const arch = os.arch() === "arm64" ? "arm64" : "x64";
   const archiveName = `node-${nodeVersion}-darwin-${arch}`;
+  const archiveFileName = `${archiveName}.tar.xz`;
   const cacheDir = path.join(os.homedir(), ".cache", "consulting-tools-desktop");
-  const archive = path.join(cacheDir, `${archiveName}.tar.xz`);
+  const archive = path.join(cacheDir, archiveFileName);
   const extracted = path.join(cacheDir, archiveName);
 
   fs.mkdirSync(cacheDir, { recursive: true });
   if (!fs.existsSync(extracted)) {
     if (!fs.existsSync(archive)) {
-      const url = `https://nodejs.org/dist/${nodeVersion}/${archiveName}.tar.xz`;
-      const curl = spawnSync("curl", ["-fL", url, "-o", archive], { stdio: "inherit" });
-      if (curl.status !== 0) {
-        throw new Error(`Failed to download bundled Node runtime from ${url}`);
-      }
+      downloadVerifiedArchive(nodeVersion, archiveFileName, archive, cacheDir);
     }
-    run("tar", ["-xJf", archive, "-C", cacheDir]);
+    extractArchiveAtomically(archive, extracted);
   }
 
   fs.copyFileSync(path.join(extracted, "bin", "node"), targetNode);
@@ -388,7 +458,7 @@ function writePakeConfigs() {
 function ensurePakeDependencies() {
   run("corepack", ["enable"], { cwd: workspace });
   run("corepack", ["prepare", pnpmVersion, "--activate"], { cwd: workspace });
-  run("corepack", [pnpmVersion, "install", "--frozen-lockfile"], { cwd: workspace });
+  run("corepack", [pnpmVersion, "install", "--frozen-lockfile"], { cwd: workspace, timeout: networkTimeoutMs });
 }
 
 function buildApp() {
