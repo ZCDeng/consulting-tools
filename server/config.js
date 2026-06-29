@@ -6,7 +6,7 @@ const dataDir = path.resolve(process.env.TOOLKIT_DATA_DIR || path.join(__dirname
 const exportsDir = path.resolve(process.env.TOOLKIT_EXPORTS_DIR || path.join(dataDir, "exports"));
 const dbPath = process.env.TOOLKIT_DB_PATH || path.join(dataDir, "toolkit.db");
 const port = Number(process.env.TOOLKIT_PORT || 41789);
-const host = process.env.TOOLKIT_HOST || "127.0.0.1";
+const host = normalizeHost(process.env.TOOLKIT_HOST);
 const token = process.env.TOOLKIT_TOKEN || crypto.randomBytes(24).toString("hex");
 
 const tools = Object.freeze({
@@ -20,6 +20,12 @@ const tools = Object.freeze({
 
 function isValidTool(tool) {
   return Object.hasOwn(tools, tool);
+}
+
+function normalizeHost(value) {
+  const hostValue = String(value || "127.0.0.1").trim().toLowerCase();
+  if (hostValue === "127.0.0.1" || hostValue === "localhost") return "127.0.0.1";
+  throw new Error("TOOLKIT_HOST must be loopback-only: 127.0.0.1 or localhost");
 }
 
 function allowedHostHeader(value) {
@@ -38,5 +44,6 @@ module.exports = {
   token,
   tools,
   isValidTool,
+  normalizeHost,
   allowedHostHeader
 };

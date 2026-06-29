@@ -36,6 +36,13 @@ function writeJson(file, value) {
   fs.writeFileSync(`${file}\n`.trim(), `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function replaceOrThrow(source, search, replacement, label) {
+  if (!source.includes(search)) {
+    throw new Error(`Could not patch Pake source: ${label}`);
+  }
+  return source.replace(search, replacement);
+}
+
 function copyDir(src, dest, filter = () => true) {
   fs.cpSync(src, dest, {
     recursive: true,
@@ -123,11 +130,7 @@ function stageNodeRuntime() {
       const url = `https://nodejs.org/dist/${nodeVersion}/${archiveName}.tar.xz`;
       const curl = spawnSync("curl", ["-fL", url, "-o", archive], { stdio: "inherit" });
       if (curl.status !== 0) {
-        const currentNode = fs.realpathSync(process.execPath);
-        console.warn(`Falling back to current Node executable: ${currentNode}`);
-        fs.copyFileSync(currentNode, targetNode);
-        fs.chmodSync(targetNode, 0o755);
-        return;
+        throw new Error(`Failed to download bundled Node runtime from ${url}`);
       }
     }
     run("tar", ["-xJf", archive, "-C", cacheDir]);
@@ -146,15 +149,27 @@ function patchRustSources() {
 
   const libPath = path.join(srcDir, "lib.rs");
   let lib = fs.readFileSync(libPath, "utf8");
-  lib = lib.replace("mod app;\nmod util;", "mod app;\nmod consulting_desktop;\nmod util;");
-  lib = lib.replace(
+  lib = replaceOrThrow(
+    lib,
+    "mod app;\nmod util;",
+    "mod app;\nmod consulting_desktop;\nmod util;",
+    "register consulting_desktop module"
+  );
+  lib = replaceOrThrow(
+    lib,
     "            let window = set_window(app.app_handle(), &pake_config, &tauri_config)?;",
-    "            consulting_desktop::start(app.app_handle())?;\n\n            let window = set_window(app.app_handle(), &pake_config, &tauri_config)?;"
+    "            consulting_desktop::start(app.app_handle())?;\n\n            let window = set_window(app.app_handle(), &pake_config, &tauri_config)?;",
+    "start bundled server before window creation"
   );
-  lib = lib.replace(
+  lib = replaceOrThrow(
+    lib,
     "        .run(|_app, _event| {\n            // Handle macOS dock icon click to reopen hidden window",
-    "        .run(|_app, _event| {\n            if matches!(_event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {\n                consulting_desktop::stop(_app);\n            }\n\n            // Handle macOS dock icon click to reopen hidden window"
+    "        .run(|_app, _event| {\n            if matches!(_event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {\n                consulting_desktop::stop(_app);\n            }\n\n            // Handle macOS dock icon click to reopen hidden window",
+    "stop bundled server on app exit"
   );
+  if (!lib.includes("consulting_desktop::start") || !lib.includes("consulting_desktop::stop")) {
+    throw new Error("Pake lifecycle patch assertions failed");
+  }
   fs.writeFileSync(libPath, lib);
 
   const windowPath = path.join(srcDir, "app", "window.rs");
@@ -211,10 +226,7 @@ function patchRustSources() {
             }
         }
     };`;
-  if (!window.includes(oldBlock)) {
-    throw new Error("Could not patch Pake window URL block");
-  }
-  fs.writeFileSync(windowPath, window.replace(oldBlock, newBlock));
+  fs.writeFileSync(windowPath, replaceOrThrow(window, oldBlock, newBlock, "desktop URL bootstrap"));
 }
 
 function mergeConfig(base, override) {
@@ -270,8 +282,20 @@ function writePakeConfigs() {
 
   const capabilitiesPath = path.join(srcTauri, "capabilities", "default.json");
   const capabilities = readJson(capabilitiesPath);
-  capabilities.remote = { urls: ["https://*.*", "http://127.0.0.1:*", "http://localhost:*"] };
+  capabilities.remote = { urls: ["http://127.0.0.1:*", "http://localhost:*"] };
   writeJson(capabilitiesPath, capabilities);
+
+  fs.writeFileSync(path.join(srcTauri, "Info.plist"), `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+      <key>NSAllowsLocalNetworking</key>
+      <true/>
+    </dict>
+  </dict>
+</plist>
+`);
 }
 
 function ensurePakeDependencies() {
