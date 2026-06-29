@@ -18,6 +18,8 @@ const appVersion = "0.1.0";
 const signingIdentity = process.env.TOOLKIT_SIGNING_IDENTITY || "-";
 const pnpmVersion = "pnpm@10.26.2";
 const networkTimeoutMs = 15 * 60 * 1000;
+const notaryProfile = process.env.TOOLKIT_NOTARY_PROFILE || "";
+const installDir = process.env.TOOLKIT_INSTALL_DIR || "";
 
 function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(" ")}`);
@@ -546,6 +548,58 @@ function signDistributionArtifacts(appPath) {
   ]);
 }
 
+function notarizeApp(appPath) {
+  if (signingIdentity === "-") {
+    console.log("Skipping notarization: no TOOLKIT_SIGNING_IDENTITY (app is ad-hoc signed).");
+    return;
+  }
+  if (!notaryProfile) {
+    console.log("Skipping notarization: set TOOLKIT_NOTARY_PROFILE to a notarytool keychain profile to enable it.");
+    return;
+  }
+  const zipPath = path.join(path.dirname(appPath), "notary.zip");
+  fs.rmSync(zipPath, { force: true });
+  run("ditto", ["-c", "-k", "--keepParent", appPath, zipPath]);
+
+  console.log(`$ xcrun notarytool submit ${zipPath} --keychain-profile ${notaryProfile} --wait`);
+  const result = spawnSync(
+    "xcrun",
+    ["notarytool", "submit", zipPath, "--keychain-profile", notaryProfile, "--wait"],
+    { encoding: "utf8", timeout: 30 * 60 * 1000 }
+  );
+  process.stdout.write(result.stdout || "");
+  process.stderr.write(result.stderr || "");
+  if (result.error) {
+    throw new Error(`notarytool failed to run: ${result.error.message}`);
+  }
+  const output = `${result.stdout || ""}${result.stderr || ""}`;
+  if (!/status: Accepted/.test(output)) {
+    // Surface the rejection reason before failing the build.
+    const idMatch = output.match(/\bid: ([0-9a-f-]{36})/i);
+    if (idMatch) {
+      run("xcrun", ["notarytool", "log", idMatch[1], "--keychain-profile", notaryProfile]);
+    }
+    throw new Error("Notarization was not Accepted; see the notary log above.");
+  }
+  run("xcrun", ["stapler", "staple", appPath]);
+  fs.rmSync(zipPath, { force: true });
+  console.log(`Notarized and stapled ${appPath}`);
+}
+
+function installApp(appPath) {
+  if (!installDir) {
+    console.log("Skipping install: set TOOLKIT_INSTALL_DIR (e.g. /Applications) to install the built app.");
+    return;
+  }
+  const target = path.join(installDir, `${appName}.app`);
+  // Quit a running copy so its files are not in use during replacement.
+  spawnSync("osascript", ["-e", `tell application "${appName}" to quit`], { stdio: "ignore" });
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.mkdirSync(installDir, { recursive: true });
+  run("ditto", [appPath, target]);
+  console.log(`Installed ${target}`);
+}
+
 if (process.platform !== "darwin") {
   throw new Error("This build script currently supports macOS only.");
 }
@@ -559,4 +613,7 @@ patchRustSources();
 writePakeConfigs();
 ensurePakeDependencies();
 buildApp();
-signDistributionArtifacts(collectApp());
+const finalApp = collectApp();
+signDistributionArtifacts(finalApp);
+notarizeApp(finalApp);
+installApp(finalApp);

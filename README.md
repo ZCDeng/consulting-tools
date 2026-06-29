@@ -32,6 +32,20 @@ node desktop/build-mac-app.mjs
 
 产物会输出到 `dist/mac/Consulting Tools.app`。App 启动时会自动运行内置本地服务,数据写入系统 app data 目录,不需要手动 `npm start`。
 
+签名、公证、安装都是可选的,按需设置环境变量:
+
+```bash
+# Developer ID 签名(不设则 ad-hoc 签名)
+export TOOLKIT_SIGNING_IDENTITY="Developer ID Application: …"
+# 公证 + staple(需先 notarytool store-credentials 存好 profile)
+export TOOLKIT_NOTARY_PROFILE="<keychain-profile>"
+# 构建完成后安装到指定目录(替换同名 app)
+export TOOLKIT_INSTALL_DIR="/Applications"
+node desktop/build-mac-app.mjs
+```
+
+公证未 `Accepted` 时脚本会打印 notary log 并报错,不会继续 staple/安装。
+
 ## 安全边界
 
 服务始终绑定回环地址,校验 `Host` 头,所有写请求都需要启动时生成的本地 token,在线页面与 API 同源、不启用通配 CORS。端口随运行模式不同:`npm start` 固定用 `41789`;macOS App 由系统分配临时端口,每次启动都不一样。三道边界(回环绑定 + `Host` 校验 + 写 token)在两种模式下都成立。
