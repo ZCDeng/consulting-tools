@@ -17,8 +17,43 @@
       .toolkit-dashboard .name{font-weight:800}.toolkit-dashboard .meta{color:var(--muted);font-size:12px}
       body.toolkit-embed .topbar,body.toolkit-embed .toolkit-project-bar,body.toolkit-embed button,body.toolkit-embed .delx{display:none!important}
       @page{size:A4;margin:12mm} body.toolkit-embed{background:var(--bg)}
+      .toolkit-modal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4)}
+      .toolkit-modal .box{min-width:320px;max-width:90vw;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+      .toolkit-modal .box label{display:block;font-weight:700;margin-bottom:10px}
+      .toolkit-modal .box input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);padding:8px 10px;font:inherit}
+      .toolkit-modal .box .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+      .toolkit-modal .box button{border:1px solid var(--line);border-radius:6px;background:var(--panel2,var(--panel));color:var(--ink);padding:7px 12px;cursor:pointer}
+      .toolkit-modal .box button.primary{background:var(--accent);color:white;border-color:transparent}
     `;
     document.head.appendChild(style);
+  }
+
+  // Tauri's macOS WKWebView does not implement window.prompt() (it returns
+  // null with no UI), so we use an in-DOM dialog instead. Works in both the
+  // desktop app and a normal browser.
+  function promptText(message, defaultValue) {
+    return new Promise(resolve => {
+      const overlay = document.createElement("div");
+      overlay.className = "toolkit-modal";
+      overlay.innerHTML = `<div class="box"><label>${escapeHtml(message)}</label><input type="text" value="${escapeAttr(defaultValue == null ? "" : defaultValue)}"><div class="actions"><button data-act="cancel">取消</button><button data-act="ok" class="primary">确定</button></div></div>`;
+      const input = overlay.querySelector("input");
+      function close(value) {
+        document.removeEventListener("keydown", onKey, true);
+        overlay.remove();
+        resolve(value);
+      }
+      function onKey(event) {
+        if (event.key === "Escape") { event.preventDefault(); close(null); }
+        else if (event.key === "Enter") { event.preventDefault(); close(input.value); }
+      }
+      overlay.querySelector('[data-act="cancel"]').onclick = () => close(null);
+      overlay.querySelector('[data-act="ok"]').onclick = () => close(input.value);
+      overlay.onclick = event => { if (event.target === overlay) close(null); };
+      document.addEventListener("keydown", onKey, true);
+      document.body.appendChild(overlay);
+      input.focus();
+      input.select();
+    });
   }
 
   function themeParam() {
@@ -31,7 +66,7 @@
   }
 
   async function createProject() {
-    const name = prompt("项目名称", "新咨询项目");
+    const name = await promptText("项目名称", "新咨询项目");
     if (!name) return null;
     const payload = await storage.api("/projects", {
       method: "POST",
