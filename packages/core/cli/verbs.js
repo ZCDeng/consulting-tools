@@ -67,6 +67,30 @@ function makeVerbs(core) {
       return { document: documents.addDocument(projectId, { title, body_md: body }) };
     },
 
+    list_documents(args) {
+      const projectId = v.requireString(args.project_id, "project_id");
+      return { documents: documents.listDocuments(projectId) };
+    },
+
+    get_document(args) {
+      const projectId = v.requireString(args.project_id, "project_id");
+      const documentId = v.requireString(args.document_id, "document_id");
+      const document = documents.getDocument(projectId, documentId);
+      if (!document) throw Object.assign(new Error("Document not found"), { statusCode: 404 });
+      return { document };
+    },
+
+    update_document(args) {
+      const projectId = v.requireString(args.project_id, "project_id");
+      const documentId = v.requireString(args.document_id, "document_id");
+      const document = documents.updateDocument(projectId, documentId, {
+        title: args.title,
+        body_md: args.body_md
+      });
+      if (!document) throw Object.assign(new Error("Document not found"), { statusCode: 404 });
+      return { document };
+    },
+
     schema() {
       return { schema };
     }

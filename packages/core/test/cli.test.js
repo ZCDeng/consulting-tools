@@ -101,6 +101,47 @@ test("list_projects stdout parses as JSON with no log noise", () => {
   }
 });
 
+test("documents round-trip: add, list, get, update", () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "toolkit-cli-"));
+  try {
+    const project = JSON.parse(run(["create_project", "--name", "Doc 项目"], { dataDir }).stdout).project;
+
+    const added = run(["add_document", "--project_id", project.id,
+      "--title", "评分依据", "--body_md", "Pugh 成本维度 +1 因为..."], { dataDir });
+    assert.equal(added.status, 0);
+    const doc = JSON.parse(added.stdout).document;
+
+    const listed = run(["list_documents", "--project_id", project.id], { dataDir });
+    assert.equal(listed.status, 0);
+    const docs = JSON.parse(listed.stdout).documents;
+    assert.equal(docs.length, 1);
+    assert.equal(docs[0].id, doc.id);
+
+    const got = run(["get_document", "--project_id", project.id, "--document_id", doc.id], { dataDir });
+    assert.equal(got.status, 0);
+    assert.equal(JSON.parse(got.stdout).document.body_md, "Pugh 成本维度 +1 因为...");
+
+    const updated = run(["update_document", "--project_id", project.id, "--document_id", doc.id,
+      "--body_md", "修订后的依据"], { dataDir });
+    assert.equal(updated.status, 0);
+    assert.equal(JSON.parse(updated.stdout).document.body_md, "修订后的依据");
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("missing document yields structured not-found", () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "toolkit-cli-"));
+  try {
+    const project = JSON.parse(run(["create_project", "--name", "X"], { dataDir }).stdout).project;
+    const out = run(["get_document", "--project_id", project.id, "--document_id", "doc_missing"], { dataDir });
+    assert.notEqual(out.status, 0);
+    assert.equal(JSON.parse(out.stderr).error.code, "PROJECT_NOT_FOUND");
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("montecarlo with fixed seed is deterministic; oversized iterations rejected", () => {
   const payload = JSON.stringify({ vars: [{ name: "a", dist: "fixed", p: { val: 2 } }], formula: "a*3", target: 5, dir: "ge" });
   const a = run(["compute_results", "--tool", "montecarlo", "--data", payload, "--iterations", "20", "--seed", "1"]);

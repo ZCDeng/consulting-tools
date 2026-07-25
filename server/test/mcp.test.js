@@ -73,6 +73,19 @@ test("MCP can create project, set data, compute, read schema, and add docs", asy
       arguments: { project_id: projectId, title: "Note", body_md: "body" }
     }));
     assert.equal(doc.document.title, "Note");
+
+    const listed = parseText(await client.callTool({
+      name: "list_documents",
+      arguments: { project_id: projectId }
+    }));
+    assert.equal(listed.documents.length, 1);
+    assert.equal(listed.documents[0].id, doc.document.id);
+
+    const fetched = parseText(await client.callTool({
+      name: "get_document",
+      arguments: { project_id: projectId, document_id: doc.document.id }
+    }));
+    assert.equal(fetched.document.body_md, "body");
   } finally {
     await client.close();
     fs.rmSync(dir, { recursive: true, force: true });

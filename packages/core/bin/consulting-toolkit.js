@@ -34,6 +34,9 @@ Verbs:
   set_tool_data       --project_id <id> --tool <tool> [--instance <str>] --data '<json>'
   compute_results     --tool <tool> --data '<json>' [--iterations <n>] [--seed <n>]
   add_document        --project_id <id> --title <str> [--body_md <str>]
+  list_documents      --project_id <id>
+  get_document        --project_id <id> --document_id <id>
+  update_document     --project_id <id> --document_id <id> [--title <str>] [--body_md <str>]
   schema
 
 Tools: kano, ce, qfd, pugh, fmea, montecarlo

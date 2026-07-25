@@ -6,6 +6,11 @@ function listDocuments(projectId) {
   return getDb().prepare("SELECT * FROM documents WHERE project_id = ? ORDER BY updated_at DESC").all(projectId);
 }
 
+function getDocument(projectId, documentId) {
+  requireProject(projectId);
+  return getDb().prepare("SELECT * FROM documents WHERE project_id = ? AND id = ?").get(projectId, documentId) || null;
+}
+
 function addDocument(projectId, input = {}) {
   requireProject(projectId);
   const stamp = now();
@@ -49,6 +54,7 @@ function deleteDocument(projectId, documentId) {
 
 module.exports = {
   listDocuments,
+  getDocument,
   addDocument,
   updateDocument,
   deleteDocument

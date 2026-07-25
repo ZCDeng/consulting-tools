@@ -88,6 +88,40 @@ function registerToolkitTools(server, { exportPdf } = {}) {
     }
   }, async args => text({ document: documents.addDocument(args.project_id, args) }));
 
+  server.registerTool("list_documents", {
+    description: "List a project's Markdown documents (notes, scoring rationale).",
+    inputSchema: {
+      project_id: z.string()
+    }
+  }, async args => text({ documents: documents.listDocuments(args.project_id) }));
+
+  server.registerTool("get_document", {
+    description: "Read one document's full Markdown body.",
+    inputSchema: {
+      project_id: z.string(),
+      document_id: z.string()
+    }
+  }, async args => {
+    const document = documents.getDocument(args.project_id, args.document_id);
+    if (!document) throw new Error("Document not found");
+    return text({ document });
+  });
+
+  server.registerTool("update_document", {
+    description: "Update a document's title or Markdown body.",
+    inputSchema: {
+      project_id: z.string(),
+      document_id: z.string(),
+      title: z.string().optional(),
+      body_md: z.string().optional()
+    }
+  }, async args => {
+    const { project_id, document_id, ...patch } = args;
+    const document = documents.updateDocument(project_id, document_id, patch);
+    if (!document) throw new Error("Document not found");
+    return text({ document });
+  });
+
   if (exportPdf) {
     server.registerTool("export_pdf", {
       description: "Export a tool instance to PDF. Saves under the toolkit exports dir when save=true.",
