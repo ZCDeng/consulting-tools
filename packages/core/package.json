@@ -1,0 +1,31 @@
+{
+  "name": "consulting-toolkit",
+  "version": "0.2.0",
+  "description": "Consulting quantitative toolkit: Kano, C&E, QFD, Pugh, FMEA, Monte Carlo. Agent-first CLI over a zero-dependency compute + storage core.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "index.js",
+  "bin": {
+    "consulting-toolkit": "bin/consulting-toolkit.js"
+  },
+  "engines": {
+    "node": ">=25.0.0"
+  },
+  "files": [
+    "index.js",
+    "config.js",
+    "data-sanitize.js",
+    "schema.js",
+    "bin/",
+    "cli/",
+    "lib/",
+    "db/",
+    "services/",
+    "cores/",
+    "static/"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {}
+}

@@ -1,6 +1,7 @@
 const { getDb, id, now } = require("../db");
+const { PROJECT_STATUSES } = require("../config");
 
-const STATUSES = new Set(["active", "paused", "archived"]);
+const STATUSES = new Set(PROJECT_STATUSES);
 
 function normalizeProject(row) {
   return row || null;

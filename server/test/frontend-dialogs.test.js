@@ -7,7 +7,7 @@ const test = require("node:test");
 // with no UI, so any prompt()-based flow silently does nothing in the desktop
 // app (this broke "create project"). Guard against reintroducing it. alert()
 // and confirm() ARE implemented by wry, so they are allowed.
-const sharedDir = path.join(__dirname, "..", "..", "shared");
+const sharedDir = path.join(__dirname, "..", "..", "packages", "static", "shared");
 
 test("shared frontend scripts do not call window.prompt (unsupported in webview)", () => {
   const files = fs.readdirSync(sharedDir).filter(name => name.endsWith(".js"));

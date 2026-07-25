@@ -1,13 +1,14 @@
 const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const { registerToolkitTools } = require("./tools");
+const { exportPdf } = require("../app");
 
 function createMcpServer() {
   const server = new McpServer({
     name: "consulting-toolkit",
-    version: "0.1.0"
+    version: "0.2.0"
   });
-  registerToolkitTools(server);
+  registerToolkitTools(server, { exportPdf });
   return server;
 }
 

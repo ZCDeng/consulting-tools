@@ -34,6 +34,13 @@ test("MCP can create project, set data, compute, read schema, and add docs", asy
     }));
     const projectId = created.project.id;
 
+    const renamed = parseText(await client.callTool({
+      name: "update_project",
+      arguments: { project_id: projectId, name: "MCP 项目 v2", status: "paused" }
+    }));
+    assert.equal(renamed.project.name, "MCP 项目 v2");
+    assert.equal(renamed.project.status, "paused");
+
     const qfdData = {
       title: "QFD",
       reqs: [{ id: "r1", name: "复购", imp: 5, cur: 2, tgt: 4, sp: 1.5 }],

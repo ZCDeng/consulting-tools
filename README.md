@@ -1,11 +1,25 @@
 # 咨询定量工具箱
 
-这个目录有两种使用方式:
+给咨询判断装上可复核的刻度：Kano / C&E / QFD / Pugh / FMEA / 蒙特卡洛，把"我觉得 A 更好"变成可复核的加权矩阵 / 概率分布。
 
-- 双击 `index.html`: 纯离线模式,数据仍保存在浏览器 `localStorage`。
-- 启动本地服务: 解锁项目管理、SQLite 持久化、MCP Agent 接口和 PDF 导出。
+三种使用方式：
 
-## 启动
+- **Agent / CLI（AI Native）**：`npx consulting-toolkit <verb>`，面向 Claude CLI / Codex / CI，纯 JSON 输出。
+- **本地服务**：解锁项目管理、SQLite 持久化、MCP Agent 接口和 PDF 导出。
+- **双击 HTML**：纯离线模式，数据存浏览器 `localStorage`（页面在 `packages/static/`）。
+
+## Agent / CLI
+
+```bash
+npx consulting-toolkit schema                 # 先看每个工具的 data_json 形状
+npx consulting-toolkit create_project --name "客户A"
+npx consulting-toolkit set_tool_data --project_id <id> --tool kano --data '<json>'
+npx consulting-toolkit compute_results --tool kano --data '<json>'
+```
+
+零依赖、Node ≥ 25；stdout 只输出 JSON，错误走 stderr + 非零退出。数据默认与 desktop app 共享同一份（平台 app-data 目录），可用 `TOOLKIT_DATA_DIR` 覆盖。
+
+## 本地服务
 
 ```bash
 cd consulting-tools/server
@@ -52,18 +66,25 @@ node desktop/build-mac-app.mjs
 
 ## MCP
 
-Claude Code 可参考 `.mcp.json` 注册:
+Claude Code 可参考 `.mcp.json` 注册（无硬编码绝对路径，`cwd` 由 Claude Code 提供）:
 
 ```json
 {
   "mcpServers": {
     "consulting-toolkit": {
       "command": "node",
-      "args": ["server/mcp/index.js"],
-      "cwd": "/Users/zcdeng/projects/consulting-tools"
+      "args": ["server/mcp/index.js"]
     }
   }
 }
 ```
 
 Agent 应先读 `toolkit://schema`,再按 `create_project -> set_tool_data -> compute_results -> export_pdf` 使用。
+
+## 结构
+
+- `packages/core` — 可发布的零依赖 core：计算核（`cores/` UMD）+ 存储（`db/` SQLite）+ 服务层（`services/`）+ Agent CLI（`bin/`、`cli/`）。`npm pack` 即得 `consulting-toolkit`。
+- `packages/static` — 浏览器资产：七个 HTML + `fonts/` + `shared/`。打包时由 `packages/core/pack-static.js` 连同 vendored cores 一起拷入发布包的 `static/`。
+- `server/` — 本地服务宿主（`npm start`）：薄 host，HTTP + token + 静态 + PDF（Playwright 归此）。
+- `desktop/host` — desktop app 的宿主：同一份 host 逻辑，自带 Playwright，不进 npm 发布包。
+- `desktop/` — macOS 打包脚本与 Rust 启动器。

@@ -1,13 +1,13 @@
 const { assertTool } = require("./tooldata");
-const { sanitizeToolData } = require("../../shared/data-sanitize");
+const { sanitizeToolData } = require("../data-sanitize");
 
 const cores = {
-  kano: require("../../shared/cores/kano"),
-  ce: require("../../shared/cores/ce"),
-  qfd: require("../../shared/cores/qfd"),
-  pugh: require("../../shared/cores/pugh"),
-  fmea: require("../../shared/cores/fmea"),
-  montecarlo: require("../../shared/cores/montecarlo")
+  kano: require("../cores/kano"),
+  ce: require("../cores/ce"),
+  qfd: require("../cores/qfd"),
+  pugh: require("../cores/pugh"),
+  fmea: require("../cores/fmea"),
+  montecarlo: require("../cores/montecarlo")
 };
 
 function computeResults(tool, data, options = {}) {

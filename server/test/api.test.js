@@ -4,8 +4,8 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const config = require("../config");
-const { openDatabase, setDbForTests } = require("../db");
+const app = require("../app");
+const { openDatabase, setDbForTests } = require("../../packages/core/db");
 const { createServer } = require("../app");
 
 function setup() {
@@ -16,9 +16,8 @@ function setup() {
   return new Promise(resolve => {
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
-      const originalAllowedHostHeader = config.allowedHostHeader;
       const host = `127.0.0.1:${port}`;
-      config.allowedHostHeader = value => value === host;
+      app.setAllowedHostHeader(value => value === host);
       resolve({
         dir,
         db,
@@ -28,7 +27,7 @@ function setup() {
         close() {
           server.close();
           db.close();
-          config.allowedHostHeader = originalAllowedHostHeader;
+          app.setAllowedHostHeader(app.allowedHostHeader);
           fs.rmSync(dir, { recursive: true, force: true });
         }
       });
@@ -209,7 +208,7 @@ test("invalid tool and traversal attempts are rejected", async () => {
     });
     assert.equal(invalidTool.status, 400);
 
-    const traversal = await request(ctx, "/../server/data/toolkit.db");
+    const traversal = await request(ctx, "/..%2F..%2Fconfig.js");
     assert.equal(traversal.status, 403);
   } finally {
     ctx.close();

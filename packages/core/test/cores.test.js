@@ -1,7 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const compute = require("../services/compute");
-
 test("QFD ranks the membership platform first on sample-shaped data", () => {
   const data = {
     title: "数字化转型",

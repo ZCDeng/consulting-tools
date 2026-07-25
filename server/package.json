@@ -1,6 +1,6 @@
 {
   "name": "consulting-toolkit-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "commonjs",
   "scripts": {
@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.5",
-    "playwright": "^1.56.1"
+    "playwright": "^1.56.1",
+    "zod": "^3.25.76"
   },
   "engines": {
     "node": ">=25.0.0"

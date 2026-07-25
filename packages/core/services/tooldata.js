@@ -1,7 +1,7 @@
 const { getDb, id, now } = require("../db");
 const { isValidTool } = require("../config");
 const { requireProject } = require("./projects");
-const { sanitizeToolData } = require("../../shared/data-sanitize");
+const { sanitizeToolData } = require("../data-sanitize");
 
 function assertTool(tool) {
   if (!isValidTool(tool)) throw Object.assign(new Error("Invalid tool"), { statusCode: 400 });

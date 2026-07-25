@@ -1,10 +1,8 @@
 const { z } = require("zod");
-const projects = require("../services/projects");
-const tooldata = require("../services/tooldata");
-const documents = require("../services/documents");
-const compute = require("../services/compute");
-const schema = require("./schema");
-const montecarlo = require("../../shared/cores/montecarlo");
+const core = require("../../packages/core");
+
+const { projects, tooldata, documents, computeResults, schema, config } = core;
+const TOOL_ENUM = z.enum(config.TOOL_NAMES);
 
 function text(value) {
   return {
@@ -12,7 +10,7 @@ function text(value) {
   };
 }
 
-function registerToolkitTools(server) {
+function registerToolkitTools(server, { exportPdf } = {}) {
   server.registerResource("toolkit-schema", "toolkit://schema", {
     title: "Consulting Toolkit Schema",
     description: "Data shapes for the six consulting tools.",
@@ -32,15 +30,31 @@ function registerToolkitTools(server) {
       name: z.string(),
       client: z.string().optional(),
       notes: z.string().optional(),
-      status: z.enum(["active", "paused", "archived"]).optional()
+      status: z.enum(config.PROJECT_STATUSES).optional()
     }
   }, async args => text({ project: projects.createProject(args) }));
+
+  server.registerTool("update_project", {
+    description: "Update a local consulting project (rename, archive, notes).",
+    inputSchema: {
+      project_id: z.string(),
+      name: z.string().optional(),
+      client: z.string().optional(),
+      notes: z.string().optional(),
+      status: z.enum(config.PROJECT_STATUSES).optional()
+    }
+  }, async args => {
+    const { project_id, ...patch } = args;
+    const project = projects.updateProject(project_id, patch);
+    if (!project) throw new Error("Project not found");
+    return text({ project });
+  });
 
   server.registerTool("get_tool_data", {
     description: "Read one tool instance from a project.",
     inputSchema: {
       project_id: z.string(),
-      tool: z.enum(["kano", "ce", "qfd", "pugh", "fmea", "montecarlo"]),
+      tool: TOOL_ENUM,
       instance: z.string().optional()
     }
   }, async args => text({ tool_data: tooldata.getToolData(args.project_id, args.tool, args.instance || "default") }));
@@ -49,7 +63,7 @@ function registerToolkitTools(server) {
     description: "Upsert one tool instance using the existing localStorage-shaped data_json.",
     inputSchema: {
       project_id: z.string(),
-      tool: z.enum(["kano", "ce", "qfd", "pugh", "fmea", "montecarlo"]),
+      tool: TOOL_ENUM,
       instance: z.string().optional(),
       data: z.record(z.string(), z.any())
     }
@@ -58,12 +72,12 @@ function registerToolkitTools(server) {
   server.registerTool("compute_results", {
     description: "Compute browser-independent conclusions for a tool data payload.",
     inputSchema: {
-      tool: z.enum(["kano", "ce", "qfd", "pugh", "fmea", "montecarlo"]),
+      tool: TOOL_ENUM,
       data: z.record(z.string(), z.any()),
-      iterations: z.number().int().positive().max(montecarlo.limits.MAX_ITERATIONS).optional(),
+      iterations: z.number().int().positive().max(core.cores.montecarlo.limits.MAX_ITERATIONS).optional(),
       seed: z.number().optional()
     }
-  }, async args => text({ result: compute.computeResults(args.tool, args.data, { iterations: args.iterations, seed: args.seed }) }));
+  }, async args => text({ result: computeResults(args.tool, args.data, { iterations: args.iterations, seed: args.seed }) }));
 
   server.registerTool("add_document", {
     description: "Add a Markdown document or note to a project.",
@@ -74,26 +88,24 @@ function registerToolkitTools(server) {
     }
   }, async args => text({ document: documents.addDocument(args.project_id, args) }));
 
-  server.registerTool("export_pdf", {
-    description: "Export a tool instance to PDF. Saves under consulting-tools/server/data/exports when save=true.",
-    inputSchema: {
-      project_id: z.string(),
-      tool: z.enum(["kano", "ce", "qfd", "pugh", "fmea", "montecarlo"]),
-      instance: z.string().optional(),
-      theme: z.enum(["light", "dark"]).optional(),
-      save: z.boolean().optional()
-    }
-  }, async args => {
-    const { exportPdf } = require("../pdf/render");
-    const result = await exportPdf({
+  if (exportPdf) {
+    server.registerTool("export_pdf", {
+      description: "Export a tool instance to PDF. Saves under the toolkit exports dir when save=true.",
+      inputSchema: {
+        project_id: z.string(),
+        tool: TOOL_ENUM,
+        instance: z.string().optional(),
+        theme: z.enum(["light", "dark"]).optional(),
+        save: z.boolean().optional()
+      }
+    }, async args => text(await exportPdf({
       projectId: args.project_id,
       tool: args.tool,
       instance: args.instance || "default",
       theme: args.theme || "dark",
       save: args.save !== false
-    });
-    return text(result);
-  });
+    })));
+  }
 }
 
 module.exports = {

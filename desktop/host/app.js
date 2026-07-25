@@ -1,20 +1,19 @@
 "use strict";
 
-// Local dev server host (`npm start`). Thin wrapper over the published core +
-// shared host-app. PDF renderer lives here (host-side) and uses Playwright,
-// which is a dependency of the server host, not the core.
+// Desktop host entry (spawned by consulting_desktop.rs). Wires the published
+// core + shared host-app + host-owned PDF renderer. Playwright is a dependency
+// of THIS host package, not of the published core (KTD7/KTD9).
 
 const path = require("node:path");
-const crypto = require("node:crypto");
-const core = require("../packages/core");
-const { createHostApp } = require("../packages/core/lib/host-app");
-const { createPdfRenderer } = require("../desktop/host/pdf-render");
+const core = require("consulting-toolkit");
+const { createHostApp } = require("consulting-toolkit/lib/host-app");
+const { createPdfRenderer } = require("./pdf-render");
 
 const { config } = core;
 
 const port = Number(process.env.TOOLKIT_PORT || 41789);
 const host = normalizeHost(process.env.TOOLKIT_HOST);
-const token = process.env.TOOLKIT_TOKEN || crypto.randomBytes(24).toString("hex");
+const token = process.env.TOOLKIT_TOKEN || require("node:crypto").randomBytes(24).toString("hex");
 
 function normalizeHost(value) {
   const v = String(value || "127.0.0.1").trim().toLowerCase();
@@ -28,11 +27,17 @@ function allowedHostHeader(value) {
   return v === `localhost:${port}` || v === `127.0.0.1:${port}`;
 }
 
+// Static root: prefer the published package's staged static/, fall back to the
+// repo's packages/static during in-repo development.
 function resolveStaticRoot() {
-  return process.env.TOOLKIT_STATIC_DIR || path.resolve(__dirname, "..", "packages", "static");
+  try {
+    const pkgStatic = path.join(path.dirname(require.resolve("consulting-toolkit")), "static");
+    if (require("node:fs").existsSync(path.join(pkgStatic, "index.html"))) return pkgStatic;
+  } catch (_) {}
+  return path.resolve(__dirname, "..", "..", "packages", "static");
 }
 
-const staticRoot = resolveStaticRoot();
+const staticRoot = process.env.TOOLKIT_STATIC_DIR || resolveStaticRoot();
 
 let ownedServer = null;
 async function canReachServer() {
@@ -47,7 +52,7 @@ async function canReachServer() {
 async function ensureHttpServer() {
   if (await canReachServer()) return;
   if (ownedServer) return;
-  ownedServer = createServer();
+  ownedServer = start();
   await new Promise((resolve, reject) => {
     ownedServer.once("error", reject);
     ownedServer.listen(port, host, resolve);
@@ -64,31 +69,23 @@ const { exportPdf } = createPdfRenderer({
   requirePlaywright: () => require("playwright")
 });
 
-let hostGuard = allowedHostHeader;
-function setAllowedHostHeader(fn) { hostGuard = fn; }
-
-function createServer() {
+function start() {
   const { server } = createHostApp({
     core,
     token,
-    allowedHostHeader: value => hostGuard(value),
+    allowedHostHeader,
     staticRoot,
     exportPdf
   });
   return server;
 }
 
-function start() {
-  const server = createServer();
+if (require.main === module) {
+  const server = start();
   server.listen(port, host, () => {
     // eslint-disable-next-line no-console
-    console.log(`Consulting toolkit listening on ${host}:${port}`);
-    console.log(`Open http://localhost:${port}/index.html`);
-    console.log(`Local token: ${token}`);
+    console.log(`consulting-toolkit desktop host on ${host}:${port}`);
   });
-  return server;
 }
 
-if (require.main === module) start();
-
-module.exports = { createServer, start, ensureHttpServer, exportPdf, allowedHostHeader, setAllowedHostHeader, normalizeHost };
+module.exports = { start, ensureHttpServer, exportPdf, allowedHostHeader };

@@ -170,40 +170,41 @@ function copyPakeTemplate() {
 }
 
 function stageToolkitSource() {
+  // New layout (U5/KTD9): stage the desktop host entry + the published core as
+  // an npm pack tarball. The published package carries the static root (7 HTML
+  // + fonts + shared) so no separate HTML/fonts copying is needed.
   fs.mkdirSync(stagedToolkit, { recursive: true });
-  const rootFiles = [
-    "index.html",
-    "Kano.html",
-    "CE-Matrix.html",
-    "QFD.html",
-    "Pugh.html",
-    "FMEA.html",
-    "MonteCarlo.html"
-  ];
-  for (const file of rootFiles) {
-    fs.copyFileSync(path.join(projectRoot, file), path.join(stagedToolkit, file));
-  }
-  copyDir(path.join(projectRoot, "fonts"), path.join(stagedToolkit, "fonts"));
-  copyDir(path.join(projectRoot, "shared"), path.join(stagedToolkit, "shared"));
-  copyDir(path.join(projectRoot, "server"), path.join(stagedToolkit, "server"), (relative) => {
+  copyDir(path.join(projectRoot, "desktop", "host"), path.join(stagedToolkit, "host"), (relative) => {
     if (!relative) return true;
     const parts = relative.split(path.sep);
-    return !["data", "node_modules", "test"].includes(parts[0]);
+    return !["node_modules"].includes(parts[0]);
   });
+  // Pack the core into a tarball for a hermetic, pre-publication install.
+  run("node", [path.join(projectRoot, "packages", "core", "pack-static.js")], { cwd: path.join(projectRoot, "packages", "core") });
+  run("npm", ["pack", path.join(projectRoot, "packages", "core"), "--pack-destination", stagedToolkit], { timeout: networkTimeoutMs });
 }
 
 function installServerDependencies() {
-  const serverDir = path.join(stagedToolkit, "server");
-  run("npm", ["ci", "--omit=dev"], { cwd: serverDir, timeout: networkTimeoutMs });
+  const hostDir = path.join(stagedToolkit, "host");
+  const tarball = fs.readdirSync(stagedToolkit).find(f => /^consulting-toolkit-.*\.tgz$/.test(f));
+  if (!tarball) throw new Error("core tarball not found in staged toolkit");
+  // Point the host's core dependency at the staged tarball (the repo uses a
+  // file: link to ../../packages/core, which dangles once staged), then
+  // install core + the host's own deps (playwright) from the lockfile-free set.
+  const pkgPath = path.join(hostDir, "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+  pkg.dependencies["consulting-toolkit"] = `file:../${tarball}`;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+  run("npm", ["install", "--omit=dev"], { cwd: hostDir, timeout: networkTimeoutMs });
   const browsersPath = path.join(os.homedir(), ".cache", "consulting-tools-desktop", "ms-playwright");
   fs.mkdirSync(browsersPath, { recursive: true });
   run("npm", ["run", "install-browser"], {
-    cwd: serverDir,
+    cwd: hostDir,
     env: { PLAYWRIGHT_BROWSERS_PATH: browsersPath },
     timeout: networkTimeoutMs
   });
-  copyDir(browsersPath, path.join(serverDir, "ms-playwright"));
-  pruneUnusedPlaywrightBrowsers(path.join(serverDir, "ms-playwright"));
+  copyDir(browsersPath, path.join(hostDir, "ms-playwright"));
+  pruneUnusedPlaywrightBrowsers(path.join(hostDir, "ms-playwright"));
 }
 
 function pruneUnusedPlaywrightBrowsers(playwrightDir) {

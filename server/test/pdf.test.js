@@ -3,11 +3,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const config = require("../config");
-const { openDatabase, setDbForTests } = require("../db");
-const projects = require("../services/projects");
-const tooldata = require("../services/tooldata");
-const { exportPdf } = require("../pdf/render");
+const config = require("../../packages/core/config");
+const { openDatabase, setDbForTests } = require("../../packages/core/db");
+const projects = require("../../packages/core/services/projects");
+const tooldata = require("../../packages/core/services/tooldata");
+const { exportPdf, ensureHttpServer } = require("../app");
 
 test("PDF export renders injected same-origin tool page and saves inside exports", async t => {
   try {

@@ -32,7 +32,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         &["consulting-tools", "resources/consulting-tools"],
     )?;
     let node_bin = first_existing(&resource_dir, &["bin/node", "resources/bin/node"])?;
-    let server_dir = toolkit_root.join("server");
+    let host_dir = toolkit_root.join("host");
     let app_data_dir = app.path().app_data_dir().map_err(|error| {
         tauri::Error::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -45,7 +45,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     let token = random_token()?;
     let url = format!("http://127.0.0.1:{port}/index.html");
     let data_dir = app_data_dir.join("data");
-    let browser_dir = server_dir.join("ms-playwright");
+    let browser_dir = host_dir.join("ms-playwright");
 
     // Keep the server's stdout/stderr so startup failures (EADDRINUSE, a
     // missing module, a DB error) leave a diagnosable trail instead of
@@ -55,8 +55,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     let stderr_log = stdout_log.try_clone().map_err(tauri::Error::Io)?;
 
     let mut child = Command::new(&node_bin)
-        .arg(server_dir.join("app.js"))
-        .current_dir(&server_dir)
+        .arg(host_dir.join("app.js"))
+        .current_dir(&host_dir)
         .env_clear()
         .env("HOME", app_data_dir.to_string_lossy().to_string())
         .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")

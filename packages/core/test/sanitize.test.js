@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { sanitizeToolData } = require("../../shared/data-sanitize");
+const { sanitizeToolData } = require("../data-sanitize");
 
 test("sanitizer rewrites unsafe QFD IDs and relationship keys", () => {
   const reqId = "x1');fetch('/token');//";
