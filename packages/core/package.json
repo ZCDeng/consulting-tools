@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "Consulting quantitative toolkit: Kano, C&E, QFD, Pugh, FMEA, Monte Carlo. Agent-first CLI over a zero-dependency compute + storage core.",
   "license": "UNLICENSED",
+  "private": true,
   "type": "commonjs",
   "main": "index.js",
   "bin": {
